@@ -1,0 +1,48 @@
+# 我的故事 — 给 Claude Code 的说明
+
+用户的人生档案网站（第四个，仿照 `../life`、`../ledger`、`../inventory`）。用中文交流。目的：把整个人生一点点写下来，并整理成「给 AI 的简介」，让另外三个网站的 AI 更懂他。
+
+外观（用户 2026-10-06 定）：**米色为主，带一些紫色**（藤紫 `--accent` 和生活网站一样）；标题、回忆、日记用宋体 `--serif`；回忆和日记用纸色 `--paper` 卡片、首行缩进。话要温柔、安静、短，不喊口号、不说教；每页右上角「?」写怎么用（`helpButton`）。**不推送、不提醒**（用户说不要）。
+
+## 结构
+
+- **本仓库 `ThreeLu/story`（公开）**：纯静态网页，GitHub Pages 发布在 https://threelu.github.io/story/ 。推送到 main 自动上线。
+- **数据仓库 `ThreeLu/story-data`（私有）**：`story.json`（全部记录）、`profile.json`（给 AI 的简介，另外三个网站读这个小文件）。和另外三个网站同一个 fine-grained 令牌（要额外授权 story-data），没有自己的令牌时用 `localStorage['life-settings' | 'inventory-settings' | 'ledger-settings']` 的。
+- **代码公开：绝不写个人信息**。人名、经历、日记、提示词里的个人情况都只在 `story.json`。`content.js` 只放通用的提示词。测试只用编的内容。
+- 用户不想在本地留数据：不要把数据仓库 clone 到本地长期保存。用户给过的日记 PDF（`../main.pdf`）已经录进 `diary`。
+- **隐私（生活网站「小记」那一块）完全不进这个网站**，也不进简介。其他内容 AI 都可以看，不需要每条设权限（用户定的）。
+- 不要照片；不要「往后看」（将来、规划留给生活网站「想做到的事」）。
+
+## 数据格式（story.json）
+
+```
+{ version, startDate, settings: {},
+  stages: [{ id, title, sub?, from?, to?（空 = 到现在）, city, busy, me, good, hard, left, line, people: [人 id] }],
+  threads: [{ id, name }],
+  events: [{ id, date（'2015' | '2015-09' | '2015-09-01'）, approx?, label?（「大概初二」）, title, text, feel, place, placeId?, people: [人 id], threads: [], kind, big?, stage?（不写就按时间）, resume?（代表的履历 id）, from?: { talk | diary }, at }],
+  talks: [{ id, topic: { kind: stage|thread|year|free, id, title }, title, memoir（ChatGPT 写的第一人称回忆）, chat（贴回来的原文）, at }],
+  diary: [{ id, date, place, weather, text, from? }],
+  about: [{ id, sec, topic, versions: [{ id, date, label?, text, from? }] }],
+  resume: [{ id, kind: edu|exam|award|paper|report|work|skill, title, org, from, to, detail, at }],
+  places: [{ id, name, kind: home|school|live|trip, lat, lng（高德坐标）, approx?, from? }],
+  years: {}, profile: { text, chatgpt, at } | null }
+```
+
+- 阶段（用户定的）：出生和家 → 上学前 → 小学 → 初中（初一、初二）→ 初三 · 直升（高中老校区）→ 高中（新校区）→ 高考后的暑假 → 本科 → 本科毕业到读博 → 读博。线：家、友情、感情、数学、音乐、信仰、身体。
+- 人都存生活网站 `life-data/life.json` 的 `people` id（「身边的人」），不在这里另存名单。`lifeSnap()` 读一次存 5 分钟；拆聊天前 `ensureLife()` 必须读到名单（不然认识的人都会被当成新的）。新认识的人在「看一看」里确认后用 `updateLife()` 加进 life.json（分组按阶段猜 `STAGE_GROUP`，可改；男 / 女必选）。人名链接到生活网站 `#/person/:id`。生活网站人的页面里有「在我的故事里」（读 story.json 里带这个人的事）。
+- **看法会变**（用户强调）：「关于我」一条（`sec` + `topic`）可以有好几个时期 `versions`，按 `date` 排，最后一个是现在的；想法变了加一个时期，不删以前的。DeepSeek 提议的同一栏同一话题加成新时期（`applyAbout`）。
+- 年表 `timelineItems`：事情 + 有开始日期的履历（事情写了 `resume` 的那条履历不再单独出现）。按阶段分组（`eventStage`：选了阶段优先，否则按时间 `stageOfDate`）。
+- 和 ChatGPT 聊（`#/talk`、`#/talk/go?k=stage|thread|year|free&id=&t=`）：`talkPrompt` / `yearPrompt`（content.js，带上这一题已经写下的 `knownFor`，免得重问）→ ChatGPT 语音聊 15–30 分钟 → 说「整理一下」，固定格式（### 回忆 / 事情 / 人 / 那时候的我 / 履历）→ 贴回 → `splitSections` 取回忆原文，`splitTalk`（DeepSeek）拆成 events / people / stage / about / resume → `talkReview` 一条条勾 → 存。原话（回忆）和拆出来的要点都留（用户定的）。建议下一个话题 `suggestTopic`：按时间第一个没聊过的阶段，再到线。
+- 人生地图（首页）：每个阶段写了多少 `stageFill` 分 0–4 档，颜色越深越满。
+- 每一年（`#/year/:y`）：这一年的事、日记、阶段 + 另外三个网站的数字（`yearStats`：账本花了 / 收入 / 心愿单买了什么，物品档案新添几样和 300 元以上的大件，生活网站出去走了哪些地方、做到的事、新记的人、生病几次、祷告天数），只读。年底聊「这一年」（`yearPrompt` 带这些数字）。
+- 给 AI 的简介（`#/profile`）：`storyDigest` 把阶段、年表、关于我（多个时期都给，标明最后是现在）、履历写成材料 → DeepSeek 写 `text`（第三人称 800–1500 字）和 `chatgpt`（第一人称、给 ChatGPT 自定义指令）→ 用户点「用这一版」才换，同时写 `profile.json`。**另外三个网站的 `js/ai.js` 读 `story-data/profile.json`（缓存一天）加在每次 DeepSeek 请求的 system 后面。**
+- 地图（`#/map`）：Leaflet（`vendor/leaflet`，按需加载）+ 高德底图（不用密钥）；紫色圆点可拖动改位置，`approx` 的是估的；有 `from` 的按时间虚线连起来。
+- DeepSeek 密钥读物品档案仓库 `config/ai.json`（`aiConfig`）。
+
+## 代码
+
+- `js/story.js` 纯计算；`js/content.js` 提示词；`js/main.js` 路由和页面；`js/store.js`、`github.js`、`util.js`、`icons.js`、`ai.js`、`picker.js` 和生活网站同一套（先存手机、后台上传）。语法检查 `node --input-type=module --check < js/main.js`。
+
+## 测试
+
+- `python3 tests/test_app.py`：真浏览器 + 本地假 GitHub（假的 story-data、life-data、finance-data、inventory-data），DeepSeek 和地图底图是假的。推送后 GitHub Actions 自动跑。**改了功能就加对应步骤。绝不拿真实数据仓库做写入测试。**
