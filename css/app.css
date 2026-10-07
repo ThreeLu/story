@@ -422,3 +422,12 @@ button:not(:disabled):active, .button:active, .icon-btn:active, a.chip:active, .
 a.cell:active, button.cell:not(:disabled):active, .cell.pick:not(:disabled):active, .cell.indicator:not(:disabled):active { background: var(--chip); transform: none; }
 button.link:not(:disabled):active, a.link:active, nav#nav a:active { transform: none; opacity: .55; }
 @media (prefers-reduced-motion: reduce) { button:active, .button:active, .icon-btn:active, a.chip:active, .tile:active .ph, a.card:active { transform: none !important; } }
+
+/* 每天一个小问题 */
+.q-card { display: flex; flex-direction: column; gap: 6px; }
+.q-text { font-family: var(--serif); font-size: 19px; font-weight: 600; line-height: 1.45; }
+.q-card .actions { margin-top: 6px; }
+.q-answer { margin: 2px 0 0; color: var(--ink); font-family: var(--serif); line-height: 1.7; white-space: pre-wrap; }
+.q-more { align-self: flex-end; margin: -2px -6px -8px; }
+.cell.qa .block + .block { margin-top: 2px; }
+.q-del { margin-top: 10px; }

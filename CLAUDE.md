@@ -26,6 +26,7 @@
   resume: [{ id, kind: edu|exam|award|paper|report|work|skill, title, org, from, to, detail, at }],
   places: [{ id, name, kind: home|school|live|trip, lat, lng（高德坐标）, approx?, from? }]（住处只定位到小区，用户说的）,
   cities: [{ id, name, from, color }]（年表的线路）, settings: { birth? },
+  answers: [{ id, qid, q, stage?, thread?, text?, talk?, day, at }]（每天一个小问题）,
   years: {}, profile: { text, chatgpt, at } | null }
 ```
 
@@ -51,3 +52,4 @@
 
 - `python3 tests/test_app.py`：真浏览器 + 本地假 GitHub（假的 story-data、life-data、finance-data、inventory-data），DeepSeek 和地图底图是假的。推送后 GitHub Actions 自动跑。**改了功能就加对应步骤。绝不拿真实数据仓库做写入测试。**
 - 按下去的手感（2026-10-07）：按钮、卡片轻轻缩一点，列表行变深，在 `app.css` 最后（四个网站同一段）。
+- 每天一个小问题（2026-10-07，首页最上面 `questionCard`）：题库 `QUESTIONS`（content.js，通用的短问题，带 stage / thread）；`dailyQuestion` 在没答过的里挑写得少的阶段、线（同一天固定，「换一个」次数存 localStorage `story-question`）。两种答法：「写几句」→ `answers[].text`；「和 ChatGPT 聊」→ `#/talk/go?k=question&id=`，提示词说只聊 5–10 分钟，存聊天时记一条带 `talk` 的回答，拆出来的事没日期就放进那一段、自动带上那条线。答过的出现在阶段页、线页「小问题」，`#/questions`（更多 → 答过的小问题）可改、删（可撤销）；有文字的进 `storyDigest`「小问题」。首页的「线」那块 2026-10-07 去掉了（用户说后面有详细的）。

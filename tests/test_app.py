@@ -377,6 +377,66 @@ def _(c):
     c.wait(lambda d: d["places"][0]["lat"] and d["places"][0]["kind"] == "home", "放到地图上")
 
 
+@step("每天一个小问题：换一个、写几句、和 ChatGPT 聊；放进那一段 / 那条线；答过的可以改、删")
+def _(c):
+    p = c.page
+    c.go("#/")
+    card = p.locator(".q-card")
+    expect(card).to_contain_text("今天的一问")
+    first = card.locator(".q-text").inner_text()
+    card.get_by_role("button", name="换一个").click()
+    expect(card.locator(".q-text")).not_to_have_text(first)
+    q1 = card.locator(".q-text").inner_text()
+    p.reload()   # 同一天换过的不变
+    expect(card.locator(".q-text")).to_have_text(q1)
+    card.get_by_role("button", name="写几句").click()
+    c.sheet().get_by_label("回答").fill("编的回答")
+    c.sheet().get_by_role("button", name="存好").click()
+    expect(card.locator(".q-answer")).to_have_text("编的回答")
+    a = c.data()["answers"][0]
+    assert a["q"] == q1 and a["text"] == "编的回答" and a["day"], a
+    if a.get("stage"):
+        c.go(f"#/stage/{a['stage']}")
+        expect(p.locator(".cell.qa", has_text="编的回答")).to_be_visible()
+    elif a.get("thread"):
+        c.go(f"#/thread/{a['thread']}")
+        expect(p.locator(".cell.qa", has_text="编的回答")).to_be_visible()
+    # 再答一个：用 ChatGPT 聊（提示词说只聊五到十分钟）
+    c.go("#/")
+    card.get_by_role("button", name="再答一个").click()
+    q2 = card.locator(".q-text").inner_text()
+    assert q2 != q1
+    card.get_by_role("link", name="和 ChatGPT 聊").click()
+    expect(p.get_by_role("heading", name=f"聊：{q2}")).to_be_visible()
+    p.get_by_role("button", name="复制提示词").click()
+    clip = p.evaluate("navigator.clipboard.readText()")
+    assert f"一个小问题：「{q2}」" in clip and "5 到 10 分钟" in clip and "15 到 30" not in clip, clip[:400]
+    p.get_by_label("ChatGPT 的整理").fill(TALK_PASTE)
+    p.get_by_role("button", name="让 DeepSeek 拆开").click()
+    p.get_by_role("button", name="存好").click()
+    expect(p.locator("article.memoir")).to_be_visible()
+    d = c.data()
+    t = d["talks"][-1]
+    a2 = d["answers"][-1]
+    assert t["topic"]["kind"] == "question" and a2["q"] == q2 and a2["talk"] == t["id"] and "text" not in a2, (t["topic"], a2)
+    c.go("#/")   # 首页：今天答过了，链到这次聊天
+    expect(card.get_by_role("link", name="和 ChatGPT 聊过了 ›")).to_be_visible()
+    # 答过的小问题：改一条、删一条可以撤销
+    c.go("#/more")
+    p.get_by_role("link", name="答过的小问题").click()
+    expect(p.locator(".group .cell")).to_have_count(2)
+    p.locator(".cell.qa", has_text="编的回答").click()
+    c.sheet().get_by_label("回答").fill("改过的回答")
+    c.sheet().get_by_role("button", name="存好").click()
+    expect(p.locator(".cell.qa", has_text="改过的回答")).to_be_visible()
+    p.locator(".cell.qa", has_text="改过的回答").click()
+    c.sheet().get_by_role("button", name="删掉这条").click()
+    expect(p.locator(".cell.qa")).to_have_count(0)
+    p.locator(".toast-undo").click()
+    expect(p.locator(".cell.qa", has_text="改过的回答")).to_be_visible()
+    c.wait(lambda d: any(x.get("text") == "改过的回答" for x in d["answers"]), "撤销删掉")
+
+
 @step("删掉一件事可以撤销")
 def _(c):
     p = c.page

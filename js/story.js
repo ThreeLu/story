@@ -85,6 +85,7 @@ export function defaultData(today) {
     resume: [], // { id, kind, title, org, from, to, detail }
     places: [], // { id, name, kind: home|school|live|trip, lat, lng, approx?, note }
     cities: [], // 年表的线路：住过的城市 { id, name, from, color }，换城市就是换乘
+    answers: [], // 每天一个小问题：{ id, qid, q, stage?, thread?, text?, talk?（用 ChatGPT 聊的那次）, day, at }
     years: {}, // { '2026': { memoir, at } }
     profile: null, // { text, chatgpt, at }
   };
@@ -92,7 +93,7 @@ export function defaultData(today) {
 
 export function migrate(data) {
   const d = defaultData(data.startDate || '');
-  for (const k of ['events', 'talks', 'diary', 'about', 'resume', 'places', 'cities']) data[k] ||= [];
+  for (const k of ['events', 'talks', 'diary', 'about', 'resume', 'places', 'cities', 'answers']) data[k] ||= [];
   data.settings ||= {};
   data.years ||= {};
   if (!data.stages?.length) data.stages = d.stages;
@@ -204,8 +205,9 @@ export function stageFill(data, st) {
   const fields = STAGE_FIELDS.filter(([k]) => (st[k] || '').trim()).length + ((st.line || '').trim() ? 1 : 0);
   const r = stageRange(st);
   const diary = r.from ? data.diary.filter((x) => x.date >= r.from && x.date <= r.to).length : 0;
+  const answers = (data.answers || []).filter((a) => a.stage === st.id).length;
   // 0–4 档：空着 / 有一点 / 有些 / 不少 / 很满
-  const score = talks * 3 + Math.min(events, 12) + fields + Math.min(diary, 6) / 2;
+  const score = talks * 3 + Math.min(events, 12) + fields + Math.min(diary, 6) / 2 + Math.min(answers, 6) / 2;
   const level = score === 0 ? 0 : score < 4 ? 1 : score < 9 ? 2 : score < 15 ? 3 : 4;
   return { events, talks, fields, diary, level };
 }
@@ -220,6 +222,24 @@ export function suggestTopic(data) {
   if (th) return { kind: 'thread', id: th.id, title: `${th.name}这条线` };
   const least = [...data.stages].sort((a, b) => stageFill(data, a).level - stageFill(data, b).level)[0];
   return { kind: 'stage', id: least.id, title: least.title };
+}
+
+// 每天一个小问题：没答过的里面，写得少的阶段、线先问；同一天固定，skip 是「换一个」点了几次
+export function dailyQuestion(data, questions, day, skip = 0) {
+  const done = new Set((data.answers || []).map((a) => a.qid));
+  const pool = questions.filter((q) => !done.has(q.id)
+    && (!q.stage || data.stages.some((s) => s.id === q.stage)) && (!q.thread || data.threads.some((t) => t.id === q.thread)));
+  if (!pool.length) return null;
+  const level = (q) => {
+    if (q.stage) return stageFill(data, data.stages.find((s) => s.id === q.stage)).level;
+    if (q.thread) return Math.min(4, Math.floor(data.events.filter((e) => e.threads?.includes(q.thread)).length / 3));
+    return 1;
+  };
+  const min = Math.min(...pool.map(level));
+  const near = pool.filter((q) => level(q) <= min + 1);
+  let seed = 0;
+  for (const ch of day) seed = (seed * 31 + ch.charCodeAt(0)) % 100003;
+  return near[(seed + skip) % near.length];
 }
 
 // ---------- 那年今天 ----------
@@ -343,6 +363,11 @@ export function storyDigest(data, peopleName) {
       if (vs.length === 1) lines.push(`- ${a.topic ? `${a.topic}：` : ''}${vs[0].text}`);
       else lines.push(`- ${a.topic || ''}：${vs.map((v) => `${versionWhen(data, v) || '某时'}——${v.text}`).join(' → ')}（最后一条是现在的）`);
     }
+  }
+  const answered = (data.answers || []).filter((a) => a.text);
+  if (answered.length) {
+    lines.push('', '【小问题】');
+    for (const a of answered) lines.push(`${a.q} ${a.text}`);
   }
   if (data.resume.length) {
     lines.push('', '【履历】');

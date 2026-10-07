@@ -24,6 +24,77 @@ export const THREAD_HINTS = {
   't-body': '从小到大身体怎么样；生过的大病、住过院没有；运动的经历；抽烟喝酒；作息和饮食的变化；心情低落的时候。',
 };
 
+// 每天一个小问题：短、具体、一两句就能答。stage / thread 是它属于哪一段、哪条线（答案放进去）；都不写是一般的问题
+const Q = (id, q, where = {}) => ({ id, q, ...where });
+export const QUESTIONS = [
+  Q('fa1', '小时候家里最常吃的一道菜是什么？', { stage: 's-family' }),
+  Q('fa2', '小时候住的房子，进门第一眼看到的是什么？', { stage: 's-family' }),
+  Q('fa3', '家里有没有一句常说的话？', { stage: 's-family' }),
+  Q('fa4', '小时候过年，家里一般是什么样子？', { stage: 's-family' }),
+  Q('pr1', '能想起来的最早一件事是什么？', { stage: 's-pre' }),
+  Q('pr2', '小时候最怕什么？', { stage: 's-pre' }),
+  Q('pr3', '上学前，一天里最喜欢做的事是什么？', { stage: 's-pre' }),
+  Q('pr4', '小时候最喜欢的一个玩具是什么？', { stage: 's-pre' }),
+  Q('pm1', '小学是怎么上下学的？路上有什么？', { stage: 's-primary' }),
+  Q('pm2', '小学时印象最深的一个老师是谁？', { stage: 's-primary' }),
+  Q('pm3', '小学放学以后，一般在做什么？', { stage: 's-primary' }),
+  Q('pm4', '小学时得过的第一张奖状是什么？', { stage: 's-primary' }),
+  Q('pm5', '小学时同桌是谁？', { stage: 's-primary' }),
+  Q('md1', '刚上初中的第一天，还记得什么？', { stage: 's-middle' }),
+  Q('md2', '初中时午饭一般在哪里吃？', { stage: 's-middle' }),
+  Q('md3', '初中时最常和谁待在一起？', { stage: 's-middle' }),
+  Q('md4', '初中时开始在意的一件事是什么？', { stage: 's-middle' }),
+  Q('m31', '知道自己能直升的那天，心情是什么样的？', { stage: 's-middle3' }),
+  Q('m32', '在老校区那一年，最常去的地方是哪？', { stage: 's-middle3' }),
+  Q('m33', '那一年和别的初三学生有什么不一样？', { stage: 's-middle3' }),
+  Q('hi1', '高中的宿舍是什么样子的？', { stage: 's-high' }),
+  Q('hi2', '高中时晚自习结束以后，一般做什么？', { stage: 's-high' }),
+  Q('hi3', '高中时最难熬的一段日子是什么时候？', { stage: 's-high' }),
+  Q('hi4', '高中毕业那天，最后见的是谁？', { stage: 's-high' }),
+  Q('hi5', '高中时最喜欢哪门课？为什么？', { stage: 's-high' }),
+  Q('su1', '高考最后一门考完，走出考场后做了什么？', { stage: 's-summer' }),
+  Q('su2', '知道分数的那一刻，在哪里、和谁在一起？', { stage: 's-summer' }),
+  Q('su3', '那个暑假做的最开心的一件事是什么？', { stage: 's-summer' }),
+  Q('co1', '刚到大学的第一个晚上，是什么感觉？', { stage: 's-college' }),
+  Q('co2', '本科时最常去的一个地方是哪？', { stage: 's-college' }),
+  Q('co3', '本科时舍友都是什么样的人？', { stage: 's-college' }),
+  Q('co4', '本科时有没有一门课改变了你的想法？', { stage: 's-college' }),
+  Q('co5', '本科时一个人做过的最远的一件事是什么？', { stage: 's-college' }),
+  Q('ga1', '本科毕业那天，心里在想什么？', { stage: 's-gap' }),
+  Q('ga2', '搬去新学校时，带了哪些东西？', { stage: 's-gap' }),
+  Q('ph1', '读博第一天，还记得什么？', { stage: 's-phd' }),
+  Q('ph2', '现在的一天一般是怎么过的？', { stage: 's-phd' }),
+  Q('ph3', '读博以来，最有成就感的一刻是什么？', { stage: 's-phd' }),
+  Q('tf1', '和爸妈最近一次长谈，聊了什么？', { thread: 't-family' }),
+  Q('tf2', '家里人身上，你最像谁？像在哪里？', { thread: 't-family' }),
+  Q('tf3', '有没有一件事，后来才明白爸妈当时的用心？', { thread: 't-family' }),
+  Q('tr1', '认识最久的朋友是谁？怎么认识的？', { thread: 't-friend' }),
+  Q('tr2', '有没有一个慢慢走散的朋友？', { thread: 't-friend' }),
+  Q('tr3', '朋友为你做过的、一直记得的一件事是什么？', { thread: 't-friend' }),
+  Q('tl1', '第一次喜欢一个人，是什么时候？', { thread: 't-love' }),
+  Q('tl2', '现在你觉得，好的感情是什么样的？', { thread: 't-love' }),
+  Q('tm1', '第一次觉得数学有意思，是因为哪道题或哪件事？', { thread: 't-math' }),
+  Q('tm2', '做数学时最开心的时刻是什么样的？', { thread: 't-math' }),
+  Q('tm3', '有没有一个影响你很深的数学老师？', { thread: 't-math' }),
+  Q('tu1', '第一次碰乐器是什么时候？', { thread: 't-music' }),
+  Q('tu2', '有没有一首歌，一听就能想起某段日子？', { thread: 't-music' }),
+  Q('tu3', '最近反复在听的是什么？', { thread: 't-music' }),
+  Q('tb1', '第一次读经或者祷告，是什么情形？', { thread: 't-faith' }),
+  Q('tb2', '有没有一次，感觉神就在身边？', { thread: 't-faith' }),
+  Q('ty1', '从小到大，生过最重的一场病是什么时候？', { thread: 't-body' }),
+  Q('ty2', '坚持得最久的一项运动是什么？', { thread: 't-body' }),
+  Q('g1', '一直喜欢、到现在也还喜欢的一本书是什么？'),
+  Q('g2', '一直喜欢的一首歌或一张专辑是什么？'),
+  Q('g3', '一直喜欢的一部电影或剧是什么？'),
+  Q('g4', '第一次一个人出远门，是去哪里？'),
+  Q('g5', '收到过最难忘的一份礼物是什么？'),
+  Q('g6', '有没有一个地方，你很想再回去看看？'),
+  Q('g7', '别人对你说过的、一直记得的一句话是什么？'),
+  Q('g8', '有没有一个决定，现在回头看很庆幸？'),
+  Q('g9', '哪一刻你觉得自己长大了？'),
+  Q('g10', '一件小时候想不通、后来想通了的事是什么？'),
+];
+
 const FORMAT = `我说「整理一下」的时候，请用中文写下面这份整理，格式固定，标题一个字都不要改：
 
 ### 回忆
@@ -53,11 +124,13 @@ export function talkPrompt(topic, known = '') {
   const what = topic.kind === 'stage' ? `我人生里的一个阶段：「${topic.title}」${topic.sub ? `（${topic.sub}）` : ''}${topic.years ? `，大概是 ${topic.years}` : ''}。`
     : topic.kind === 'thread' ? `我人生里的一条线：「${topic.title}」。从最早的时候开始，一直聊到现在，看看它是怎么一路变过来的。`
       : topic.kind === 'year' ? `我的 ${topic.id} 年：这一年发生了什么，我有什么变化。`
-        : `「${topic.title}」`;
+        : topic.kind === 'question' ? `一个小问题：「${topic.title}」。`
+          : `「${topic.title}」`;
   const hint = topic.kind === 'stage' ? STAGE_HINTS[topic.id] : topic.kind === 'thread' ? THREAD_HINTS[topic.id] : '';
+  const role = topic.kind === 'question' ? ROLE.replace('一次聊 15 到 30 分钟。', '这次只聊这一个小问题，5 到 10 分钟就好，细节问清楚就可以收尾。') : ROLE;
   return `我在写一份自己的人生记录，想和你用语音聊一聊。今天聊的是${what}
 
-${ROLE}
+${role}
 ${hint ? `\n可以聊的方向（当线索，不用全问，看我愿意说哪些）：${hint}\n` : ''}${known ? `\n这些我已经写下来了，不用再问，可以接着往深处聊：\n${known}\n` : ''}
 ${FORMAT}`;
 }

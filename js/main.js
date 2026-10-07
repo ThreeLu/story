@@ -3,10 +3,10 @@ import { Store, newId, diff, apply as applyPatch } from './store.js';
 import {
   defaultData, todayKey, dateText, shortDate, parseDate, dateStart, yearOf, stageRange, stageYears, stageOfDate, eventStage,
   sortEvents, timelineItems, resumeTitle, stageFill, suggestTopic, onThisDay, firstLine, sortVersions, latestVersion, versionWhen,
-  applyAbout, yearsSpan, yearItems, yearStats, storyDigest, splitSections, metroRows, ageAt, sortedCities, LINE_COLORS,
+  applyAbout, yearsSpan, yearItems, yearStats, storyDigest, dailyQuestion, splitSections, metroRows, ageAt, sortedCities, LINE_COLORS,
   STAGE_FIELDS, EVENT_KINDS, ABOUT_SECS, RESUME_KINDS, STAGE_GROUP, PEOPLE_GROUPS,
 } from './story.js';
-import { talkPrompt, yearPrompt, TALK_STEPS } from './content.js';
+import { talkPrompt, yearPrompt, TALK_STEPS, QUESTIONS } from './content.js';
 import { h } from './util.js';
 import { askJson } from './ai.js';
 import { icon } from './icons.js';
@@ -137,6 +137,7 @@ const routes = [
   [/^\/years$/, () => yearsView()],
   [/^\/year\/(\d{4})$/, (y) => yearView(Number(y))],
   [/^\/profile$/, () => profileView()],
+  [/^\/questions$/, () => questionsView()],
   [/^\/more$/, () => moreView()],
   [/^\/settings$/, () => settingsView()],
 ];
@@ -144,7 +145,7 @@ const NAV_GROUPS = {
   '/': [/^\/?$/, /^\/stage\//, /^\/thread\//],
   '/timeline': [/^\/timeline/, /^\/event\//, /^\/map/],
   '/about': [/^\/about/],
-  '/more': [/^\/more/, /^\/resume/, /^\/diary/, /^\/years?/, /^\/profile/, /^\/settings/],
+  '/more': [/^\/more/, /^\/questions/, /^\/resume/, /^\/diary/, /^\/years?/, /^\/profile/, /^\/settings/],
 };
 
 function render() {
@@ -395,6 +396,7 @@ async function aiConfig() {
 const HOME_HELP = [
   ['这是什么', ['一点一点把自己的人生写下来：每个阶段、发生过的事、身边的人、自己是什么样的人。', '写下来的东西会整理成一份「给 AI 的简介」，账本、生活、物品档案里的 AI 会用它更懂你。']],
   ['怎么写', ['主要靠和 ChatGPT 语音聊：点下面中间的话筒，挑一个话题，聊完把整理贴回来。', '平时想起什么，在「年表」右上角点 ＋ 记一件事。']],
+  ['今天的一问', ['每天一个小问题，写一两句就好；想多说就点「和 ChatGPT 聊」，聊五到十分钟。', '不想答就「换一个」。写得少的阶段和线会先问到。答过的在「更多」→「答过的小问题」，也会出现在那一段、那条线里。']],
   ['人生地图', ['每一段颜色越深，写得越多。浅的就是还空着的。点一段进去看。']],
 ];
 function homeView() {
@@ -406,6 +408,7 @@ function homeView() {
   const counts = `写下了 ${d.events.length} 件事 · 聊过 ${d.talks.length} 次`;
   return h('div', {},
     headerSub('我的故事', counts, helpButton('我的故事', HOME_HELP)),
+    questionCard(today),
     h('div', { class: 'card next-talk' },
       h('div', { class: 'grow' }, h('div', { class: 'muted small' }, '下一次聊'), h('div', { class: 'next-title' }, topic.title)),
       h('a', { class: 'button', href: `#/talk/go?k=${topic.kind}&id=${encodeURIComponent(topic.id)}` }, icon('mic'), '开始聊'),
@@ -416,6 +419,88 @@ function homeView() {
       otd.slice(0, 3).map((x) => h('a', { class: 'otd', href: x.kind === 'event' ? `#/event/${x.id}` : `#/diary/${x.id}` },
         h('span', { class: 'muted small' }, `${today.slice(0, 4) - x.date.slice(0, 4)} 年前 · ${x.kind === 'event' ? '年表' : '日记'}`),
         h('span', { class: 'block' }, x.title)))) : null);
+}
+
+// ---------- 每天一个小问题 ----------
+
+const Q_KEY = 'story-question';
+const qState = { more: false }; // 今天答过了还想再答一个
+function qSkip(day) {
+  try { const x = JSON.parse(localStorage.getItem(Q_KEY) || '{}'); return x.day === day ? x.skip || 0 : 0; } catch { return 0; }
+}
+function setQSkip(day, skip) {
+  try { localStorage.setItem(Q_KEY, JSON.stringify({ day, skip })); } catch { /* 存不了就算了 */ }
+}
+const qWhere = (a) => (a.stage ? stageById(a.stage)?.title : a.thread ? `${threadName(a.thread)}这条线` : '') || '';
+
+function questionCard(today) {
+  const d = store.data;
+  const done = d.answers.filter((a) => a.day === today).sort((x, y) => x.at.localeCompare(y.at));
+  if (done.length && !qState.more) {
+    const a = done[done.length - 1];
+    return h('div', { class: 'card q-card done' },
+      h('div', { class: 'muted small' }, '今天的一问'),
+      h('div', { class: 'q-text' }, a.q),
+      a.text ? h('p', { class: 'q-answer' }, a.text) : h('a', { class: 'link small', href: `#/talk/${a.talk}` }, '和 ChatGPT 聊过了 ›'),
+      h('button', { class: 'link small q-more', onclick: () => { qState.more = true; render(); } }, '再答一个'));
+  }
+  const q = dailyQuestion(d, QUESTIONS, today, qSkip(today));
+  if (!q) return null;
+  return h('div', { class: 'card q-card' },
+    h('div', { class: 'muted small' }, '今天的一问'),
+    h('div', { class: 'q-text' }, q.q),
+    h('div', { class: 'actions' },
+      h('button', { class: 'small', onclick: () => answerSheet(q) }, icon('pen'), '写几句'),
+      h('a', { class: 'button secondary small', href: `#/talk/go?k=question&id=${q.id}` }, icon('mic'), '和 ChatGPT 聊')),
+    h('button', { class: 'link small q-more', onclick: () => { setQSkip(today, qSkip(today) + 1); render(); } }, '换一个'));
+}
+
+// 写几句：新答一个（q 是题库里的），或者改已经答过的（a）
+function answerSheet(q, a = null) {
+  const box = h('textarea', { rows: 5, placeholder: '一两句就好', 'aria-label': '回答' });
+  box.value = a?.text || '';
+  const where = qWhere(a || q);
+  setTimeout(() => box.focus(), 50);
+  openSheet({
+    title: (a || q).q,
+    body: h('div', { class: 'form' }, box, where ? h('p', { class: 'muted small' }, `会放进「${where}」`) : null),
+    confirmText: '存好',
+    extra: a ? h('button', { class: 'danger small wide q-del', onclick: () => {
+      document.querySelector('.sheet-overlay')?.remove();
+      saveUndoable('小问题：删掉', (data) => { data.answers = data.answers.filter((x) => x.id !== a.id); }, '删掉了').then(render).catch(() => {});
+    } }, '删掉这条') : null,
+    onConfirm: () => {
+      const text = box.value.trim();
+      if (!text) { toast('写一句再存', 'error'); return false; }
+      if (a) return saveRender('小问题：改', (data) => { const x = data.answers.find((y) => y.id === a.id); if (x) x.text = text; });
+      qState.more = false;
+      return save(`小问题：${q.q}`, (data) => {
+        data.answers.push({ id: newId('a'), qid: q.id, q: q.q, ...(q.stage ? { stage: q.stage } : {}), ...(q.thread ? { thread: q.thread } : {}), text, day: todayKey(), at: nowIso() });
+      }).then(() => { toast('记下了'); render(); }).catch(() => false);
+    },
+  });
+}
+
+// 一段、一条线里答过的小问题
+function answersBlock(list) {
+  if (!list.length) return null;
+  return [h('div', { class: 'section-title' }, `小问题（${list.length}）`),
+    h('div', { class: 'group' }, list.map(answerCell))];
+}
+function answerCell(a) {
+  return a.text
+    ? h('button', { type: 'button', class: 'cell qa', onclick: () => answerSheet(null, a) },
+      h('span', { class: 'grow' }, h('span', { class: 'muted small block' }, a.q), h('span', { class: 'block' }, a.text)))
+    : cell({ href: `#/talk/${a.talk}`, ic: 'mic', title: a.q, meta: '聊过' });
+}
+
+function questionsView() {
+  const d = store.data;
+  const list = [...d.answers].reverse();
+  return h('div', {},
+    back('#/more', '更多'),
+    headerSub('答过的小问题', list.length ? `${list.length} 个 · 还有 ${QUESTIONS.length - new Set(d.answers.map((a) => a.qid)).size} 个没问到` : ''),
+    list.length ? h('div', { class: 'group' }, list.map(answerCell)) : h('p', { class: 'muted small pad' }, '还没有。首页每天有一个小问题。'));
 }
 
 // 人生地图：一排书脊（用户 2026-10-07 选的）。越宽这一段越长，颜色越深写得越多，没写的是米白的空书；现在这一段夹着书签
@@ -688,6 +773,7 @@ function stageView(id) {
       : h('p', { class: 'muted small pad' }, '还没有。'),
     h('a', { class: 'link small pad', href: `#/event/new?stage=${id}` }, '＋ 记一件这一段的事'),
     talks.length ? [h('div', { class: 'section-title' }, '聊过的'), h('div', { class: 'group' }, talks.map((t) => cell({ href: `#/talk/${t.id}`, ic: 'mic', title: t.title, meta: t.at.slice(0, 10) })))] : null,
+    answersBlock(d.answers.filter((a) => a.stage === id)),
     diary.length ? [h('div', { class: 'section-title' }, `这段时间的日记（${diary.length}）`), h('div', { class: 'group' }, diary.map((x) => cell({ href: `#/diary/${x.id}`, ic: 'book', title: firstLine(x.text, 24), meta: shortDate(x.date) })))] : null,
     h('div', { class: 'pager' },
       prev ? h('a', { href: `#/stage/${prev.id}` }, '‹ ', prev.title) : h('span'),
@@ -763,6 +849,7 @@ function threadView(id) {
     h('div', { class: 'section-title' }, '按时间'),
     items.length ? h('div', { class: 'tl' }, items.map(tlRow)) : h('p', { class: 'muted small pad' }, '还没有。聊一聊，或者在记事的时候选上这条线。'),
     h('a', { class: 'link small pad', href: `#/event/new?thread=${id}` }, '＋ 记一件这条线上的事'),
+    answersBlock(d.answers.filter((a) => a.thread === id)),
     talks.length ? [h('div', { class: 'section-title' }, '聊过的'), h('div', { class: 'group' }, talks.map((x) => cell({ href: `#/talk/${x.id}`, ic: 'mic', title: x.title, meta: x.at.slice(0, 10) })))] : null);
 }
 
@@ -779,6 +866,7 @@ function topicFrom(q) {
   if (q.k === 'thread') { const t = d.threads.find((x) => x.id === q.id); return t && { kind: 'thread', id: t.id, title: t.name }; }
   if (q.k === 'year' && /^\d{4}$/.test(q.id || '')) return { kind: 'year', id: q.id, title: `${q.id} 年` };
   if (q.k === 'free' && q.t) return { kind: 'free', id: '', title: q.t };
+  if (q.k === 'question') { const x = QUESTIONS.find((y) => y.id === q.id); return x && { kind: 'question', id: x.id, title: x.q, ...(x.stage ? { stage: x.stage } : {}), ...(x.thread ? { thread: x.thread } : {}) }; }
   return null;
 }
 const topicHref = (t) => `#/talk/go?k=${t.kind}&id=${encodeURIComponent(t.id || '')}${t.kind === 'free' ? `&t=${encodeURIComponent(t.title)}` : ''}`;
@@ -814,6 +902,7 @@ function talkListView() {
 
 // 已经写下的（放进提示词，免得 ChatGPT 重复问）
 function knownFor(topic) {
+  if (topic.kind === 'question') return topic.stage || topic.thread ? knownFor({ kind: topic.stage ? 'stage' : 'thread', id: topic.stage || topic.thread }) : '';
   const d = store.data;
   let events = [];
   const lines = [];
@@ -936,6 +1025,7 @@ function talkReview(topic) {
   const memoir = h('textarea', { rows: 10, 'aria-label': '回忆', oninput: (e) => { talkState.memoir = e.target.value; } });
   memoir.value = talkState.memoir;
   const st = topic.kind === 'stage' ? stageById(topic.id) : null;
+  const evStage = st || (topic.kind === 'question' && topic.stage ? stageById(topic.stage) : null); // 没日期的事放进哪一段
   const known = new Set(lifePeople().map((p) => p.name));
   const sec = (k) => ABOUT_SECS.find(([x]) => x === k)?.[1] || k;
   const store2 = async () => {
@@ -958,6 +1048,9 @@ function talkReview(topic) {
         const talkId = newId('t');
         await store.save(`聊了：${talkState.title || topic.title}`, (data) => {
           data.talks.push({ id: talkId, topic, title: talkState.title.trim() || topic.title, ...(pk.memoir ? { memoir: talkState.memoir.trim() } : {}), chat: talkState.paste.trim(), at: nowIso() });
+          if (topic.kind === 'question') {
+            data.answers.push({ id: newId('a'), qid: topic.id, q: topic.title, ...(topic.stage ? { stage: topic.stage } : {}), ...(topic.thread ? { thread: topic.thread } : {}), talk: talkId, day: todayKey(), at: nowIso() });
+          }
           if (st) {
             const s = data.stages.find((x) => x.id === st.id);
             for (const [k, on] of Object.entries(pk.stage)) {
@@ -974,8 +1067,8 @@ function talkReview(topic) {
             data.events.push({
               id: newId('e'), date: e.date, ...(e.approx ? { approx: true } : {}), ...(e.label ? { label: e.label } : {}), title: e.title,
               text: [e.text, lost.length ? `（提到：${lost.join('、')}）` : ''].filter(Boolean).join(''), feel: e.feel || '', place: e.place || '',
-              people, threads: e.threads, kind: EVENT_KINDS.some(([k]) => k === e.kind) ? e.kind : '', ...(e.big ? { big: true } : {}),
-              ...(st && !stageOfDate(data.stages, e.date) ? { stage: st.id } : {}), from: { talk: talkId }, at: nowIso(),
+              people, threads: topic.thread && !e.threads.includes(topic.thread) ? [...e.threads, topic.thread] : e.threads, kind: EVENT_KINDS.some(([k]) => k === e.kind) ? e.kind : '', ...(e.big ? { big: true } : {}),
+              ...(evStage && !stageOfDate(data.stages, e.date) ? { stage: evStage.id } : {}), from: { talk: talkId }, at: nowIso(),
             });
           });
           r.about.forEach((a, i) => { if (pk.about[i]) applyAbout(data, a, newId, { talk: talkId }); });
@@ -985,6 +1078,7 @@ function talkReview(topic) {
           });
         });
         Object.assign(talkState, { key: '', paste: '', result: null, picks: null });
+        if (topic.kind === 'question') qState.more = false;
         toast('存好了');
         go(`#/talk/${talkId}`, true);
       });
@@ -1481,6 +1575,7 @@ function moreView() {
   return h('div', {},
     header('更多'),
     h('div', { class: 'group' },
+      cell({ href: '#/questions', ic: 'pen', title: '答过的小问题', meta: d.answers.length ? `${d.answers.length} 个` : '' }),
       cell({ href: '#/resume', ic: 'receipt', title: '履历', meta: d.resume.length ? `${d.resume.length} 条` : '' }),
       cell({ href: '#/diary', ic: 'book', title: '日记', meta: d.diary.length ? `${d.diary.length} 篇` : '' }),
       cell({ href: '#/years', ic: 'calendar', title: '每一年', sub: '年度回顾' }),
