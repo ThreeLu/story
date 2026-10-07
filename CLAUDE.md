@@ -50,3 +50,4 @@
 ## 测试
 
 - `python3 tests/test_app.py`：真浏览器 + 本地假 GitHub（假的 story-data、life-data、finance-data、inventory-data），DeepSeek 和地图底图是假的。推送后 GitHub Actions 自动跑。**改了功能就加对应步骤。绝不拿真实数据仓库做写入测试。**
+- 按下去的手感（2026-10-07）：按钮、卡片轻轻缩一点，列表行变深，在 `app.css` 最后（四个网站同一段）。

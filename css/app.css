@@ -415,3 +415,10 @@ nav#nav .plus .circle {
 .swatches { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
 .swatch { width: 26px; height: 26px; min-height: 0; padding: 0; border-radius: 50%; }
 .swatch.on { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
+
+/* 按下去的手感（苹果的做法）：按钮、卡片轻轻缩一点，列表行底色深一点，底部导航变淡 */
+button, .button, .icon-btn, .chip, .tile .ph, a.card, nav#nav a { transition: transform .15s ease, opacity .15s ease, background-color .15s ease; }
+button:not(:disabled):active, .button:active, .icon-btn:active, a.chip:active, .tile:active .ph, a.card:active { transform: scale(.97); }
+a.cell:active, button.cell:not(:disabled):active, .cell.pick:not(:disabled):active, .cell.indicator:not(:disabled):active { background: var(--chip); transform: none; }
+button.link:not(:disabled):active, a.link:active, nav#nav a:active { transform: none; opacity: .55; }
+@media (prefers-reduced-motion: reduce) { button:active, .button:active, .icon-btn:active, a.chip:active, .tile:active .ph, a.card:active { transform: none !important; } }
