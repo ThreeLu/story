@@ -1323,6 +1323,7 @@ function profileView() {
         await store.save('给 AI 的简介', (data) => { data.profile = full; });
         // 另外三个网站读的是这一份小文件（不用整个读 story.json）
         await store.saveJson('profile.json', () => ({ text: full.text, at: full.at }), '给 AI 的简介（另外三个网站用）');
+        writeJson('story-profile', { text: full.text, fetched: Date.now() }); // 同一个网址下另外三个网站读的缓存，马上换成新的
       });
       profileState.draft = null; toast('换好了'); render();
     } catch { /* 已提示 */ }
