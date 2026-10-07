@@ -438,6 +438,18 @@ button.link:not(:disabled):active, a.link:active, nav#nav a:active { transform: 
 /* 柜子里一张专辑一组：上面一行小字写专辑名，组和组之间空开一点、隔一道细线 */
 .cab-album { flex: none; align-self: stretch; display: flex; flex-direction: column; align-items: flex-start; }
 .cab-album + .cab-album { margin-left: 8px; padding-left: 10px; border-left: 0.5px solid color-mix(in srgb, var(--wood) 35%, transparent); }
-.cab-album-name { width: 0; min-width: calc(100% - 4px); min-height: 2.8em; margin: 0 0 2px 4px; font: 11px/1.4 var(--serif); letter-spacing: 0.04em; color: color-mix(in srgb, var(--ink) 70%, transparent); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }  /* 专辑名不撑宽这一组，最多两行 */
+.cab-album-name { width: 0; min-width: calc(100% - 4px); min-height: 2.8em; margin: 0 0 2px 4px; font: 12.5px/1.4 var(--serif); letter-spacing: 0.04em; color: color-mix(in srgb, var(--ink) 70%, transparent); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }  /* 专辑名不撑宽这一组，最多两行 */
 .cab-album-name.blank { visibility: hidden; }
 .cab-album-items { display: flex; align-items: flex-start; gap: 6px; }  /* 唱片顶端对齐，展签长短不一往下垂 */
+
+/* 关于我：一件展品「喜欢的歌」，放大一点放在中间 */
+.cab-items.centered { justify-content: center; min-height: 130px; }
+.piece.big { width: 120px; }
+.piece.big .piece-obj { width: 72px; height: 72px; }
+.piece.big .piece-svg { width: 60px; height: 60px; }
+.piece.big .piece-label { max-width: 116px; font-size: 14px; padding: 5px 10px 4px; }
+.piece-count { display: block; margin-top: 1px; font-size: 10.5px; color: #8a7e6c; }
+/* 喜欢的歌：每个歌手一个小柜子，柜顶铜牌写歌手名（字大一点） */
+.artist-cab { margin-bottom: 22px; }
+.cab-crown.tall { height: 48px; }
+.cab-crown-plate.big { font-size: 17px; letter-spacing: 0.12em; padding: 7px 16px 7px 18px; border-radius: 3px; }

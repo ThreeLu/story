@@ -129,6 +129,7 @@ const routes = [
   [/^\/talk\/([^/]+)$/, (id) => talkView(id)],
   [/^\/about$/, () => aboutView()],
   [/^\/about\/([^/]+)$/, (id) => aboutEntryView(id)],
+  [/^\/songs$/, () => songsView()],
   [/^\/song\/([^/]+)$/, (id) => songView(id)],
   [/^\/resume$/, () => resumeView()],
   [/^\/diary$/, () => diaryListView()],
@@ -145,7 +146,7 @@ const routes = [
 const NAV_GROUPS = {
   '/': [/^\/?$/, /^\/stage\//, /^\/thread\//],
   '/timeline': [/^\/timeline/, /^\/event\//, /^\/map/],
-  '/about': [/^\/about/, /^\/song\//],
+  '/about': [/^\/about/, /^\/songs?(\/|$)/],
   '/more': [/^\/more/, /^\/questions/, /^\/resume/, /^\/diary/, /^\/years?/, /^\/profile/, /^\/settings/],
 };
 
@@ -1135,29 +1136,53 @@ function talkView(id) {
 // ---------- 关于我 ----------
 
 const ABOUT_HELP = [
-  ['这一页', ['一个展示柜，现在只放最喜欢的歌。每个歌手一层，层里按专辑分开。', '每一层最后的「＋」放一首这个歌手的歌；柜子下面「一次放好几首」可以粘贴一整份清单。', '点一张唱片看它的展签，可以改、可以拿掉。']],
+  ['这一页', ['一个展示柜，放关于你的东西。现在只有一件「喜欢的歌」，以后一点一点往里放。', '点一件展品打开它。']],
+];
+const SONGS_HELP = [
+  ['这一页', ['每个歌手一个小柜子，柜顶的铜牌写歌手名；柜子里按专辑分开。', '每个柜子最后的「＋」放一首这个歌手的歌；最下面「一次放好几首」可以粘贴一整份清单，「＋ 新的歌手」放别的歌手的歌。', '点一张唱片看它的展签，可以改、可以拿掉。']],
   ['一次放好几首', ['一行一首：歌名 — 歌手 — 专辑（专辑、歌手可以不写）。', '已经在柜子里的同一首不会重复放。']],
 ];
 // 展示柜（用户 2026-10-07 要的「像展示的柜子」）：木框玻璃柜，层板上铜牌写这一层放什么。
-// 同一天用户又定：柜子里只放最喜欢的歌，每个歌手一层、按专辑分；以前的「关于我」各栏藏起来不删（简介照样用）
+// 同一天用户又定：柜子里现在只放一件「喜欢的歌」，点开是一个个歌手的歌；以前的「关于我」各栏藏起来不删（简介照样用）
 function aboutView() {
   const d = store.data;
-  const shelves = songShelves(d.songs);
-  const shelf = (plate, body, addArtist) => h('section', { class: 'cab-shelf', 'aria-label': plate },
-    h('div', { class: 'cab-items' }, body,
-      h('button', { type: 'button', class: `piece add${body.length ? '' : ' empty'}`, 'aria-label': addArtist ? `放一首${addArtist}的歌` : '放一首歌', onclick: () => songSheet(null, addArtist) },
-        h('span', { class: 'piece-obj' }, '＋'), h('span', { class: 'piece-label' }, body.length ? '放一首' : '还空着'))),
-    h('div', { class: 'cab-plank' }, h('span', { class: 'cab-plate' }, plate)));
+  const artists = new Set(d.songs.map((x) => x.artist).filter(Boolean)).size;
   return h('div', {},
     header('关于我', helpButton('关于我', ABOUT_HELP)),
     h('div', { class: 'cabinet' },
       h('div', { class: 'cab-crown' }, h('span', { class: 'cab-crown-plate' }, '关 于 我')),
       h('div', { class: 'cab-glass' },
-        shelves.length ? shelves.map((x) => shelf(x.artist || '其他', x.albums.map((al) => h('div', { class: 'cab-album' },
-          al.album ? h('div', { class: 'cab-album-name' }, al.album) : h('div', { class: 'cab-album-name blank' }, ' '),
-          h('div', { class: 'cab-album-items' }, al.songs.map(songPiece)))), x.artist)) : shelf('最喜欢的歌', [], '')),
-      h('div', { class: 'cab-base' })),
-    h('button', { class: 'link small pad', onclick: songBatchSheet }, '一次放好几首'));
+        h('section', { class: 'cab-shelf', 'aria-label': '喜欢的' },
+          h('div', { class: 'cab-items centered' },
+            h('a', { class: 'piece big', href: '#/songs', 'aria-label': '喜欢的歌' },
+              h('span', { class: 'piece-obj' }, pieceSvg('record')),
+              h('span', { class: 'piece-label' }, h('span', { class: 'piece-name' }, '喜欢的歌'),
+                d.songs.length ? h('span', { class: 'piece-count' }, `${d.songs.length} 首${artists ? ` · ${artists} 位歌手` : ''}`) : null))),
+          h('div', { class: 'cab-plank' }, h('span', { class: 'cab-plate' }, '喜 欢 的')))),
+      h('div', { class: 'cab-base' })));
+}
+// 喜欢的歌：每个歌手一个小柜子（柜顶铜牌写歌手名，用户嫌层板上的字太小），柜子里按专辑分
+function songsView() {
+  const d = store.data;
+  const shelves = songShelves(d.songs);
+  const addBtn = (artist, empty) => h('button', { type: 'button', class: `piece add${empty ? ' empty' : ''}`, 'aria-label': artist ? `放一首${artist}的歌` : '放一首歌', onclick: () => songSheet(null, artist) },
+    h('span', { class: 'piece-obj' }, '＋'), h('span', { class: 'piece-label' }, empty ? '还空着' : '放一首'));
+  const cabinet = (plate, body, artist, n) => h('div', { class: 'cabinet artist-cab' },
+    h('div', { class: 'cab-crown tall' }, h('span', { class: 'cab-crown-plate big' }, plate)),
+    h('div', { class: 'cab-glass' }, h('section', { class: 'cab-shelf', 'aria-label': plate },
+      h('div', { class: 'cab-items' }, body, addBtn(artist, !body.length)),
+      h('div', { class: 'cab-plank' }, n ? h('span', { class: 'cab-plate' }, `${n} 首`) : null))),
+    h('div', { class: 'cab-base' }));
+  return h('div', {},
+    back('#/about', '关于我'),
+    headerSub('喜欢的歌', d.songs.length ? `${d.songs.length} 首 · ${shelves.filter((x) => x.artist).length} 位歌手` : '', helpButton('喜欢的歌', SONGS_HELP)),
+    shelves.length ? shelves.map((x) => cabinet(x.artist || '其他', x.albums.map((al) => h('div', { class: 'cab-album' },
+      al.album ? h('div', { class: 'cab-album-name' }, al.album) : h('div', { class: 'cab-album-name blank' }, ' '),
+      h('div', { class: 'cab-album-items' }, al.songs.map(songPiece)))), x.artist, x.albums.reduce((a, al) => a + al.songs.length, 0)))
+      : cabinet('喜欢的歌', [], '', 0),
+    h('div', { class: 'actions' },
+      h('button', { class: 'secondary small', onclick: songBatchSheet }, '一次放好几首'),
+      shelves.length ? h('button', { class: 'secondary small', onclick: () => songSheet() }, '＋ 新的歌手') : null));
 }
 function songPiece(x) {
   return h('a', { class: 'piece', href: `#/song/${x.id}`, 'aria-label': `${x.name}${x.artist ? `，${x.artist}` : ''}` },
@@ -1189,7 +1214,7 @@ function songSheet(x = null, artist0 = '') {
     confirmText: x ? '存好' : '放进去',
     extra: x ? h('button', { class: 'danger wide', onclick: () => {
       document.querySelector('.sheet-overlay')?.remove();
-      saveUndoable(`关于我：拿掉「${x.name}」`, (data) => { data.songs = data.songs.filter((y) => y.id !== x.id); }, '拿掉了').then(() => go('#/about')).catch(() => {});
+      saveUndoable(`关于我：拿掉「${x.name}」`, (data) => { data.songs = data.songs.filter((y) => y.id !== x.id); }, '拿掉了').then(() => go('#/songs')).catch(() => {});
     } }, '从柜子里拿掉') : null,
     onConfirm: () => {
       if (!name.value.trim()) { toast('写一下歌名', 'error'); return false; }
@@ -1244,7 +1269,7 @@ function songView(id) {
   const x = store.data.songs.find((y) => y.id === id);
   if (!x) return notFound();
   return h('div', {},
-    back('#/about', '关于我'),
+    back('#/songs', '喜欢的歌'),
     h('div', { class: 'exhibit' },
       h('div', { class: 'exhibit-case' }, pieceSvg('record', 'exhibit-svg'), h('span', { class: 'exhibit-stand' })),
       h('div', { class: 'exhibit-label' },
