@@ -11,6 +11,7 @@ import { h } from './util.js';
 import { askJson } from './ai.js';
 import { icon } from './icons.js';
 import { personPicker } from './picker.js';
+import { PIECES, guessPiece, pieceSvg } from './pieces.js';
 
 const SETTINGS_KEY = 'story-settings';
 const DEFAULT_REPO = 'ThreeLu/story-data';
@@ -995,26 +996,35 @@ function talkView(id) {
 // ---------- 关于我 ----------
 
 const ABOUT_HELP = [
-  ['这一页', ['你是什么样的人：性格、看重的、喜欢和不喜欢的、习惯、身体、信仰、喜欢别人怎么和你说话。', '和 ChatGPT 聊的时候，DeepSeek 发现新的内容会提议加进来，你确认了才加。']],
-  ['看法会变', ['同一件事，不同时期的看法不一样。一条可以有好几个时期：点进去看是怎么一路变过来的，最下面那条是现在的。', '想法变了就点「加一个时期」，不用删以前的。']],
+  ['这一页', ['一个展示柜：每一层是一个栏目（性格、看重的、我怎么看……），每一件展品是关于你的一条。', '点一件展品，看它的说明和「年代」。每一层最后的「＋」可以再放一件。']],
+  ['看法会变', ['同一件事，不同时期的看法不一样。展签下面有几个小点，就是有几个时期。', '想法变了，在展品里点「加一个时期」，不用删以前的。']],
+  ['展品的样子', ['按话题自动挑一件小物件（音乐是唱片、科研是指南针……）。不合适就在展品里点「换个样子」。']],
 ];
+// 展示柜（用户 2026-10-07 要的「像展示的柜子」）：木框玻璃柜，每个栏目一层，层板上铜牌写栏目名；每一条是一件展品 + 展签
 function aboutView() {
   const d = store.data;
   return h('div', {},
     header('关于我', helpButton('关于我', ABOUT_HELP)),
-    ABOUT_SECS.map(([sec, name]) => {
-      const list = d.about.filter((a) => a.sec === sec);
-      return h('section', {},
-        h('div', { class: 'section-title row' }, h('span', {}, name), h('button', { class: 'link small', onclick: () => aboutSheet(sec) }, '＋ 加一条')),
-        list.length ? h('div', { class: 'group' }, list.map((a) => {
-          const v = latestVersion(a);
-          const n = a.versions.length;
-          return h('a', { class: 'about-row', href: `#/about/${a.id}` },
-            a.topic ? h('b', {}, a.topic) : null,
-            h('span', { class: 'about-text' }, v?.text || ''),
-            n > 1 ? h('span', { class: 'muted small block' }, `${n} 个时期 · 看怎么变的`) : null);
-        })) : h('p', { class: 'muted small pad' }, '还空着'));
-    }));
+    h('div', { class: 'cabinet' },
+      h('div', { class: 'cab-crown' }, h('span', { class: 'cab-crown-plate' }, '关 于 我')),
+      h('div', { class: 'cab-glass' },
+        ABOUT_SECS.map(([sec, name]) => {
+          const list = d.about.filter((a) => a.sec === sec);
+          return h('section', { class: 'cab-shelf', 'aria-label': name },
+            h('div', { class: 'cab-items' },
+              list.map(pieceEl),
+              h('button', { type: 'button', class: `piece add${list.length ? '' : ' empty'}`, 'aria-label': `往「${name}」这一层放一件`, onclick: () => aboutSheet(sec) },
+                h('span', { class: 'piece-obj' }, '＋'), h('span', { class: 'piece-label' }, list.length ? '放一件' : '还空着'))),
+            h('div', { class: 'cab-plank' }, h('span', { class: 'cab-plate' }, name)));
+        })),
+      h('div', { class: 'cab-base' })));
+}
+function pieceEl(a) {
+  const n = a.versions.length;
+  return h('a', { class: 'piece', href: `#/about/${a.id}`, 'aria-label': `${a.topic || '一件展品'}${n > 1 ? `，${n} 个时期` : ''}` },
+    h('span', { class: 'piece-obj' }, pieceSvg(guessPiece(a))),
+    h('span', { class: 'piece-label' }, h('span', { class: 'piece-name' }, a.topic || firstLine(latestVersion(a)?.text, 5)),
+      n > 1 ? h('span', { class: 'piece-dots' }, Array.from({ length: Math.min(n, 5) }, () => h('i'))) : null));
 }
 function aboutSheet(sec, entry = null) {
   const topic = h('input', { value: entry?.topic || '', placeholder: '话题，比如「科研」「恋爱」（可以不写）', 'aria-label': '话题' });
@@ -1071,9 +1081,29 @@ function aboutEntryView(id) {
     openSheet({ title: '改话题', body: h('div', { class: 'form' }, topic, h('label', {}, '放在哪一栏', sel)), confirmText: '存好',
       onConfirm: () => saveRender('关于我：改话题', (data) => { const x = data.about.find((y) => y.id === id); x.topic = topic.value.trim(); x.sec = sel.value; }) });
   };
+  const secName = ABOUT_SECS.find(([k]) => k === a.sec)?.[1] || '';
+  const first = vs.find((v) => v.date);
+  const era = first ? `${first.date.slice(0, 4)} — ${vs.length > 1 ? '现在' : ''}`.replace(/ — $/, '') : '';
+  const restyle = () => {
+    const cur = guessPiece(a);
+    openSheet({ title: '换个样子', confirmText: null, cancelText: '算了', onConfirm: () => {},
+      body: h('div', { class: 'piece-grid' }, Object.entries(PIECES).map(([k, [label]]) => h('button', {
+        type: 'button', class: `piece-pick${k === cur ? ' on' : ''}`, 'aria-label': label,
+        onclick: () => { document.querySelector('.sheet-overlay')?.remove(); saveRender('关于我：换个样子', (data) => { data.about.find((y) => y.id === id).icon = k; }); },
+      }, pieceSvg(k), h('span', {}, label)))) });
+  };
   return h('div', {},
     back('#/about', '关于我'),
-    headerSub(a.topic || ABOUT_SECS.find(([k]) => k === a.sec)?.[1], ABOUT_SECS.find(([k]) => k === a.sec)?.[1], h('button', { class: 'icon-btn', 'aria-label': '改话题', onclick: rename }, icon('pen'))),
+    h('div', { class: 'exhibit' },
+      h('div', { class: 'exhibit-case' }, pieceSvg(guessPiece(a), 'exhibit-svg'), h('span', { class: 'exhibit-stand' })),
+      h('div', { class: 'exhibit-label' },
+        h('div', { class: 'ex-kicker' }, `展品 · ${secName}`),
+        h('h1', {}, a.topic || secName),
+        h('div', { class: 'ex-era' }, [era, vs.length > 1 ? `${vs.length} 个时期` : ''].filter(Boolean).join(' · ')),
+        h('div', { class: 'ex-actions' },
+          h('button', { class: 'link small', onclick: restyle }, '换个样子'),
+          h('button', { class: 'link small', onclick: rename }, '改话题')))),
+    vs.length > 1 ? h('div', { class: 'section-title' }, '年代') : null,
     h('div', { class: 'versions' }, vs.map((v, i) => h('button', { type: 'button', class: `version${i === vs.length - 1 ? ' now' : ''}`, onclick: () => editV(v) },
       h('span', { class: 'v-when' }, versionWhen(d, v) || (i === vs.length - 1 ? '现在' : '以前'), i === vs.length - 1 && vs.length > 1 ? ' · 现在' : ''),
       h('span', { class: 'v-text' }, v.text),

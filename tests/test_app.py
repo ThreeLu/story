@@ -252,11 +252,11 @@ def _(c):
     expect(p.locator(".person-thread", has=p.locator(".pt-name", has_text="丙同桌"))).to_be_visible()
 
 
-@step("关于我：同一个话题加一个时期，按时间排，最后是现在")
+@step("关于我：展示柜、展品加一个时期（按时间排，最后是现在）、换个样子、往一层放一件")
 def _(c):
     p = c.page
     c.go("#/about")
-    p.locator(".about-row", has_text="内向").click()
+    p.locator(".piece", has_text="内向").click()
     p.get_by_role("button", name="＋ 加一个时期（想法变了）").click()
     c.sheet().get_by_label("内容").fill("现在开朗多了")
     c.sheet().get_by_label("这是什么时候的").fill("2026")
@@ -264,10 +264,14 @@ def _(c):
     expect(p.locator(".version")).to_have_count(2)
     expect(p.locator(".version.now")).to_contain_text("现在开朗多了")
     expect(p.locator(".version").first).to_contain_text("小学时")
+    # 换个样子
+    p.get_by_role("button", name="换个样子").click()
+    c.sheet().get_by_role("button", name="唱片").click()
+    c.wait(lambda d: next(a for a in d["about"] if a["topic"] == "内向").get("icon") == "record", "换了样子")
     c.go("#/about")
-    expect(p.locator(".about-row", has_text="内向")).to_contain_text("2 个时期")
+    expect(p.locator(".piece", has_text="内向").locator(".piece-dots i")).to_have_count(2)
     # 新的一条
-    p.locator(".section-title").filter(has=p.get_by_text("喜欢的", exact=True)).get_by_role("button", name="＋ 加一条").click()
+    p.get_by_role("button", name="往「喜欢的」这一层放一件").click()
     c.sheet().get_by_label("话题").fill("音乐")
     c.sheet().get_by_label("内容").fill("编的古典")
     c.sheet().get_by_role("button", name="加上").click()
