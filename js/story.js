@@ -85,6 +85,7 @@ export function defaultData(today) {
     resume: [], // { id, kind, title, org, from, to, detail }
     places: [], // { id, name, kind: home|school|live|trip, lat, lng, approx?, note }
     cities: [], // 年表的线路：住过的城市 { id, name, from, color }，换城市就是换乘
+    songs: [], // 展示柜里最喜欢的歌：{ id, name, artist?, album?, since?, note?, at }（按放进去的顺序）
     answers: [], // 每天一个小问题：{ id, qid, q, stage?, thread?, text?, talk?（用 ChatGPT 聊的那次）, day, at }
     years: {}, // { '2026': { memoir, at } }
     profile: null, // { text, chatgpt, at }
@@ -93,7 +94,7 @@ export function defaultData(today) {
 
 export function migrate(data) {
   const d = defaultData(data.startDate || '');
-  for (const k of ['events', 'talks', 'diary', 'about', 'resume', 'places', 'cities', 'answers']) data[k] ||= [];
+  for (const k of ['events', 'talks', 'diary', 'about', 'resume', 'places', 'cities', 'answers', 'songs']) data[k] ||= [];
   data.settings ||= {};
   data.years ||= {};
   if (!data.stages?.length) data.stages = d.stages;
@@ -242,6 +243,32 @@ export function dailyQuestion(data, questions, day, skip = 0) {
   return near[(seed + skip) % near.length];
 }
 
+// ---------- 展示柜里的歌 ----------
+
+// 一次放好几首：一行一首「歌名 — 歌手 — 专辑」（也认 | ｜ 分隔；破折号两边要有空格，免得拆开歌名里的连字符）
+export function parseSongLines(text) {
+  return text.split('\n').map((line) => line.trim()).filter(Boolean).map((line) => {
+    const [name = '', artist = '', album = ''] = line.split(/\s*[|｜]\s*|\s+[—–-]{1,2}\s+/).map((x) => x.trim());
+    return { name, artist, album };
+  }).filter((x) => x.name);
+}
+// 柜子：每个歌手一层，层里按专辑分开（都按第一次放进去的顺序）；没写专辑的放在最后
+export function songShelves(songs) {
+  const shelves = new Map();
+  for (const x of songs) {
+    const a = x.artist || '';
+    if (!shelves.has(a)) shelves.set(a, new Map());
+    const albums = shelves.get(a);
+    const al = x.album || '';
+    if (!albums.has(al)) albums.set(al, []);
+    albums.get(al).push(x);
+  }
+  return [...shelves.entries()].map(([artist, albums]) => ({
+    artist,
+    albums: [...albums.entries()].sort((p, q) => (p[0] ? 0 : 1) - (q[0] ? 0 : 1)).map(([album, list]) => ({ album, songs: list })),
+  }));
+}
+
 // ---------- 那年今天 ----------
 
 export function onThisDay(data, today = todayKey()) {
@@ -363,6 +390,10 @@ export function storyDigest(data, peopleName) {
       if (vs.length === 1) lines.push(`- ${a.topic ? `${a.topic}：` : ''}${vs[0].text}`);
       else lines.push(`- ${a.topic || ''}：${vs.map((v) => `${versionWhen(data, v) || '某时'}——${v.text}`).join(' → ')}（最后一条是现在的）`);
     }
+  }
+  if (data.songs?.length) {
+    lines.push('', '【最喜欢的歌】');
+    for (const x of data.songs) lines.push(`${x.name}${x.artist ? ` — ${x.artist}` : ''}${x.album ? `《${x.album}》` : ''}${x.since ? `（${dateText(x.since)}起）` : ''}${x.note ? `：${x.note}` : ''}`);
   }
   const answered = (data.answers || []).filter((a) => a.text);
   if (answered.length) {

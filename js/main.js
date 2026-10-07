@@ -3,7 +3,7 @@ import { Store, newId, diff, apply as applyPatch } from './store.js';
 import {
   defaultData, todayKey, dateText, shortDate, parseDate, dateStart, yearOf, stageRange, stageYears, stageOfDate, eventStage,
   sortEvents, timelineItems, resumeTitle, stageFill, suggestTopic, onThisDay, firstLine, sortVersions, latestVersion, versionWhen,
-  applyAbout, yearsSpan, yearItems, yearStats, storyDigest, dailyQuestion, splitSections, metroRows, ageAt, sortedCities, LINE_COLORS,
+  yearsSpan, yearItems, yearStats, storyDigest, dailyQuestion, parseSongLines, songShelves, splitSections, metroRows, ageAt, sortedCities, LINE_COLORS,
   STAGE_FIELDS, EVENT_KINDS, ABOUT_SECS, RESUME_KINDS, STAGE_GROUP, PEOPLE_GROUPS,
 } from './story.js';
 import { talkPrompt, yearPrompt, TALK_STEPS, QUESTIONS } from './content.js';
@@ -129,6 +129,7 @@ const routes = [
   [/^\/talk\/([^/]+)$/, (id) => talkView(id)],
   [/^\/about$/, () => aboutView()],
   [/^\/about\/([^/]+)$/, (id) => aboutEntryView(id)],
+  [/^\/song\/([^/]+)$/, (id) => songView(id)],
   [/^\/resume$/, () => resumeView()],
   [/^\/diary$/, () => diaryListView()],
   [/^\/diary\/new$/, () => diaryEditView('new')],
@@ -144,7 +145,7 @@ const routes = [
 const NAV_GROUPS = {
   '/': [/^\/?$/, /^\/stage\//, /^\/thread\//],
   '/timeline': [/^\/timeline/, /^\/event\//, /^\/map/],
-  '/about': [/^\/about/],
+  '/about': [/^\/about/, /^\/song\//],
   '/more': [/^\/more/, /^\/questions/, /^\/resume/, /^\/diary/, /^\/years?/, /^\/profile/, /^\/settings/],
 };
 
@@ -973,10 +974,9 @@ async function splitTalk(topic, chat) {
     '- 已经记下的事（下面列着）不要重复。',
     '- people：整理里出现、但不在「已经认识的人」名单里的人。sex 写 m 或 f（不知道写空），rel 关系（同学、舍友、老师、妈妈……），how 怎么认识的，一句话。名单里已经有的人不要放进来（名字一样就是同一个人）。',
     topic.kind === 'stage' ? `- stage：这一段（${topic.title}）的描述，只写整理里说到的，字段：city 在哪里（城市、学校、住处）、busy 在忙什么、me 那时候的我、good 开心的事、hard 难的事、left 留下了什么、line 一句话概括。没说到的字段不要写。` : '- stage 写 {}。',
-    '- about：关于他是什么样的人。sec 从 basic 基本、character 性格、values 看重的、views 我怎么看（对某件事的看法）、likes 喜欢的、dislikes 不喜欢的、habits 习惯、body 身体、faith 信仰、talk 和我说话（喜欢别人怎么和他说话）里选；topic 话题（2–6 个字，比如「科研」「恋爱」「抽烟喝酒」，下面列着已有的话题，同一件事就用同一个 topic）；date 这是哪个时候的想法（YYYY 或 YYYY-MM）；label 可选（「高中时」）；text 一两句。看法会随时间变，所以一定写清是哪个时候的。',
     '- resume：学校、考试、比赛、奖、论文、兼职、技能。kind 从 edu/exam/award/paper/report/work/skill 选；title；org 单位；from、to 日期；detail 分数名次等。',
     '- title：给这次聊天起个名字（10 字以内）。',
-    '只输出 JSON：{"title":"","stage":{},"events":[{"date":"","approx":false,"label":"","title":"","text":"","feel":"","place":"","people":[],"threads":[],"kind":"","big":false}],"people":[{"name":"","sex":"","rel":"","how":""}],"about":[{"sec":"","topic":"","date":"","label":"","text":""}],"resume":[{"kind":"","title":"","org":"","from":"","to":"","detail":""}]}',
+    '只输出 JSON：{"title":"","stage":{},"events":[{"date":"","approx":false,"label":"","title":"","text":"","feel":"","place":"","people":[],"threads":[],"kind":"","big":false}],"people":[{"name":"","sex":"","rel":"","how":""}],"resume":[{"kind":"","title":"","org":"","from":"","to":"","detail":""}]}',
   ].join('\n');
   const known = topic.kind === 'stage' ? d.events.filter((e) => eventStage(d, e)?.id === topic.id)
     : topic.kind === 'thread' ? d.events.filter((e) => e.threads?.includes(topic.id)) : topic.kind === 'year' ? d.events.filter((e) => e.date?.startsWith(topic.id)) : d.events;
@@ -986,14 +986,13 @@ async function splitTalk(topic, chat) {
     `线：${d.threads.map((t) => `${t.id}=${t.name}`).join('，')}`,
     `已经认识的人：${people.join('、') || '（读不到）'}`,
     `已经记下的事：\n${sortEvents(known).slice(-60).map((e) => `- ${dateText(e.date, e)}：${e.title}`).join('\n') || '（没有）'}`,
-    `「关于我」已有的话题：${[...new Set(d.about.map((a) => `${a.sec}/${a.topic}`))].join('、') || '（没有）'}`,
     `ChatGPT 的整理：\n${chat}`,
   ].join('\n\n');
   const out = await askJson(await aiConfig(), system, user, { maxTokens: 12000, timeout: 180000 });
   for (const k of ['events', 'people', 'about', 'resume']) if (!Array.isArray(out[k])) out[k] = [];
   if (!out.stage || typeof out.stage !== 'object') out.stage = {};
   for (const e of out.events) { e.date = parseDate(e.date) || ''; e.threads = (e.threads || []).filter((t) => d.threads.some((x) => x.id === t)); e.people = (e.people || []).filter(Boolean); }
-  for (const a of out.about) { a.date = parseDate(a.date) || ''; }
+  out.about = []; // 2026-10-07 起「关于我」只放自己挑的歌，不从聊天里拆
   for (const r of out.resume) { r.from = parseDate(r.from) || ''; r.to = parseDate(r.to) || ''; }
   return out;
 }
@@ -1027,7 +1026,6 @@ function talkReview(topic) {
   const st = topic.kind === 'stage' ? stageById(topic.id) : null;
   const evStage = st || (topic.kind === 'question' && topic.stage ? stageById(topic.stage) : null); // 没日期的事放进哪一段
   const known = new Set(lifePeople().map((p) => p.name));
-  const sec = (k) => ABOUT_SECS.find(([x]) => x === k)?.[1] || k;
   const store2 = async () => {
     const keepNames = new Set(pk.people.filter((p) => p.on).map((p) => p.name));
     const newPeople = pk.people.filter((p) => p.on && p.name.trim());
@@ -1071,7 +1069,6 @@ function talkReview(topic) {
               ...(evStage && !stageOfDate(data.stages, e.date) ? { stage: evStage.id } : {}), from: { talk: talkId }, at: nowIso(),
             });
           });
-          r.about.forEach((a, i) => { if (pk.about[i]) applyAbout(data, a, newId, { talk: talkId }); });
           r.resume.forEach((x, i) => {
             if (!pk.resume[i]) return;
             data.resume.push({ id: newId('r'), kind: RESUME_KINDS.some(([k]) => k === x.kind) ? x.kind : 'award', title: x.title || '', org: x.org || '', from: x.from || '', to: x.to || '', detail: x.detail || '', at: nowIso() });
@@ -1107,14 +1104,6 @@ function talkReview(topic) {
             h('select', { 'aria-label': `${p.name}的分组`, onchange: (e) => { p.group = e.target.value; } },
               h('option', { value: '' }, '还没分组'), PEOPLE_GROUPS.map(([k, t]) => h('option', { value: k, selected: p.group === k }, t)))))))),
       known.size ? null : h('p', { class: 'muted small pad' }, '还没读到身边的人，名字可能对不上。')] : null,
-    r.about.length ? [h('div', { class: 'section-title' }, `关于我（${r.about.length}）`),
-      h('div', { class: 'card' }, r.about.map((a, i) => {
-        const exists = d.about.some((x) => x.sec === a.sec && x.topic === a.topic);
-        return h('label', { class: 'pick' }, box(pk.about[i], (v) => { pk.about[i] = v; }, a.topic || a.text),
-          h('span', { class: 'grow' }, h('b', {}, `${sec(a.sec)}${a.topic ? ` · ${a.topic}` : ''}`),
-            h('span', { class: 'block muted small' }, [a.label || (a.date ? dateText(a.date) : ''), exists ? '加成这一条的一个新时期' : '新的一条'].filter(Boolean).join(' · ')),
-            h('span', { class: 'block small' }, a.text)));
-      }))] : null,
     r.resume.length ? [h('div', { class: 'section-title' }, `履历（${r.resume.length}）`),
       h('div', { class: 'card' }, r.resume.map((x, i) => h('label', { class: 'pick' }, box(pk.resume[i], (v) => { pk.resume[i] = v; }, x.title),
         h('span', { class: 'grow' }, h('b', {}, resumeTitle(x)), h('span', { class: 'block muted small' }, [shortDate(x.from), x.detail].filter(Boolean).join(' · '))))))] : null,
@@ -1146,29 +1135,127 @@ function talkView(id) {
 // ---------- 关于我 ----------
 
 const ABOUT_HELP = [
-  ['这一页', ['一个展示柜：每一层是一个栏目（性格、看重的、我怎么看……），每一件展品是关于你的一条。', '点一件展品，看它的说明和「年代」。每一层最后的「＋」可以再放一件。']],
-  ['看法会变', ['同一件事，不同时期的看法不一样。展签下面有几个小点，就是有几个时期。', '想法变了，在展品里点「加一个时期」，不用删以前的。']],
-  ['展品的样子', ['按话题自动挑一件小物件（音乐是唱片、科研是指南针……）。不合适就在展品里点「换个样子」。']],
+  ['这一页', ['一个展示柜，现在只放最喜欢的歌。每个歌手一层，层里按专辑分开。', '每一层最后的「＋」放一首这个歌手的歌；柜子下面「一次放好几首」可以粘贴一整份清单。', '点一张唱片看它的展签，可以改、可以拿掉。']],
+  ['一次放好几首', ['一行一首：歌名 — 歌手 — 专辑（专辑、歌手可以不写）。', '已经在柜子里的同一首不会重复放。']],
 ];
-// 展示柜（用户 2026-10-07 要的「像展示的柜子」）：木框玻璃柜，每个栏目一层，层板上铜牌写栏目名；每一条是一件展品 + 展签
+// 展示柜（用户 2026-10-07 要的「像展示的柜子」）：木框玻璃柜，层板上铜牌写这一层放什么。
+// 同一天用户又定：柜子里只放最喜欢的歌，每个歌手一层、按专辑分；以前的「关于我」各栏藏起来不删（简介照样用）
 function aboutView() {
   const d = store.data;
+  const shelves = songShelves(d.songs);
+  const shelf = (plate, body, addArtist) => h('section', { class: 'cab-shelf', 'aria-label': plate },
+    h('div', { class: 'cab-items' }, body,
+      h('button', { type: 'button', class: `piece add${body.length ? '' : ' empty'}`, 'aria-label': addArtist ? `放一首${addArtist}的歌` : '放一首歌', onclick: () => songSheet(null, addArtist) },
+        h('span', { class: 'piece-obj' }, '＋'), h('span', { class: 'piece-label' }, body.length ? '放一首' : '还空着'))),
+    h('div', { class: 'cab-plank' }, h('span', { class: 'cab-plate' }, plate)));
   return h('div', {},
     header('关于我', helpButton('关于我', ABOUT_HELP)),
     h('div', { class: 'cabinet' },
       h('div', { class: 'cab-crown' }, h('span', { class: 'cab-crown-plate' }, '关 于 我')),
       h('div', { class: 'cab-glass' },
-        ABOUT_SECS.map(([sec, name]) => {
-          const list = d.about.filter((a) => a.sec === sec);
-          return h('section', { class: 'cab-shelf', 'aria-label': name },
-            h('div', { class: 'cab-items' },
-              list.map(pieceEl),
-              h('button', { type: 'button', class: `piece add${list.length ? '' : ' empty'}`, 'aria-label': `往「${name}」这一层放一件`, onclick: () => aboutSheet(sec) },
-                h('span', { class: 'piece-obj' }, '＋'), h('span', { class: 'piece-label' }, list.length ? '放一件' : '还空着'))),
-            h('div', { class: 'cab-plank' }, h('span', { class: 'cab-plate' }, name)));
-        })),
-      h('div', { class: 'cab-base' })));
+        shelves.length ? shelves.map((x) => shelf(x.artist || '其他', x.albums.map((al) => h('div', { class: 'cab-album' },
+          al.album ? h('div', { class: 'cab-album-name' }, al.album) : h('div', { class: 'cab-album-name blank' }, ' '),
+          h('div', { class: 'cab-album-items' }, al.songs.map(songPiece)))), x.artist)) : shelf('最喜欢的歌', [], '')),
+      h('div', { class: 'cab-base' })),
+    h('button', { class: 'link small pad', onclick: songBatchSheet }, '一次放好几首'));
 }
+function songPiece(x) {
+  return h('a', { class: 'piece', href: `#/song/${x.id}`, 'aria-label': `${x.name}${x.artist ? `，${x.artist}` : ''}` },
+    h('span', { class: 'piece-obj' }, pieceSvg('record')),
+    h('span', { class: 'piece-label' }, h('span', { class: 'piece-name' }, x.name)));
+}
+// 输一个字出放过的（用户要的补全）
+function suggestList(id, values) {
+  return h('datalist', { id }, [...new Set(values.filter(Boolean))].map((v) => h('option', { value: v })));
+}
+// 放一首 / 改一首；artist0：从某一层的「＋」进来，歌手先填好
+function songSheet(x = null, artist0 = '') {
+  const songs = store.data.songs;
+  const name = h('input', { value: x?.name || '', placeholder: '歌名', 'aria-label': '歌名' });
+  const artist = h('input', { value: x?.artist ?? artist0, placeholder: '谁唱的（可以不写）', 'aria-label': '谁唱的', list: 'song-artists', autocomplete: 'off' });
+  const album = h('input', { value: x?.album || '', placeholder: '哪张专辑（可以不写）', 'aria-label': '哪张专辑', list: 'song-albums', autocomplete: 'off' });
+  const albums = suggestList('song-albums', []);
+  const fillAlbums = () => albums.replaceChildren(...suggestList('song-albums', songs.filter((y) => y.artist === artist.value.trim()).map((y) => y.album)).childNodes);
+  artist.addEventListener('input', fillAlbums);
+  fillAlbums();
+  const since = dateInput(x?.since || '', '从什么时候开始喜欢');
+  const note = h('textarea', { rows: 3, placeholder: '为什么喜欢，一句就好（可以不写）', 'aria-label': '为什么喜欢' });
+  note.value = x?.note || '';
+  setTimeout(() => (x ? null : name.focus()), 50);
+  openSheet({
+    title: x ? '改这首歌' : '放一首歌',
+    body: h('div', { class: 'form' }, name, artist, suggestList('song-artists', songs.map((y) => y.artist)), album, albums,
+      h('label', {}, '从什么时候开始喜欢（可以不写）', since), note),
+    confirmText: x ? '存好' : '放进去',
+    extra: x ? h('button', { class: 'danger wide', onclick: () => {
+      document.querySelector('.sheet-overlay')?.remove();
+      saveUndoable(`关于我：拿掉「${x.name}」`, (data) => { data.songs = data.songs.filter((y) => y.id !== x.id); }, '拿掉了').then(() => go('#/about')).catch(() => {});
+    } }, '从柜子里拿掉') : null,
+    onConfirm: () => {
+      if (!name.value.trim()) { toast('写一下歌名', 'error'); return false; }
+      const dt = readDate(since, '时间');
+      if (dt === null) return false;
+      const fields = { name: name.value.trim(), artist: artist.value.trim(), album: album.value.trim(), since: dt, note: note.value.trim() };
+      for (const k of ['artist', 'album', 'since', 'note']) if (!fields[k]) delete fields[k];
+      return saveRender(x ? `关于我：改「${fields.name}」` : `关于我：放进「${fields.name}」`, (data) => {
+        if (!x) { data.songs.push({ id: newId('m'), ...fields, at: nowIso() }); return; }
+        const y = data.songs.find((z) => z.id === x.id);
+        for (const k of ['artist', 'album', 'since', 'note']) delete y[k];
+        Object.assign(y, fields);
+      });
+    },
+  });
+}
+// 一次放好几首：粘贴清单，一行一首
+function songBatchSheet() {
+  const box = h('textarea', { rows: 10, placeholder: '一行一首：歌名 — 歌手 — 专辑\n比如：编的歌 — 编的歌手 — 编的专辑', 'aria-label': '歌的清单' });
+  const count = h('p', { class: 'muted small' }, '');
+  const key = (x) => `${x.name}\u0000${x.artist || ''}`;
+  const fresh = () => {
+    const have = new Set(store.data.songs.map(key));
+    const seen = new Set();
+    return parseSongLines(box.value).filter((x) => { const k = key(x); if (have.has(k) || seen.has(k)) return false; seen.add(k); return true; });
+  };
+  box.addEventListener('input', () => {
+    const all = parseSongLines(box.value).length;
+    const n = fresh().length;
+    count.textContent = all ? `${n} 首新的${all > n ? `（${all - n} 首柜子里已经有了）` : ''}` : '';
+  });
+  setTimeout(() => box.focus(), 50);
+  openSheet({
+    title: '一次放好几首',
+    body: h('div', { class: 'form' }, box, count),
+    confirmText: '放进去',
+    onConfirm: () => {
+      const list = fresh();
+      if (!list.length) { toast(box.value.trim() ? '这些都已经在柜子里了' : '先粘贴清单', 'error'); return false; }
+      return save(`关于我：一次放进 ${list.length} 首歌`, (data) => {
+        const at = nowIso();
+        for (const x of list) {
+          const song = { id: newId('m'), name: x.name, ...(x.artist ? { artist: x.artist } : {}), ...(x.album ? { album: x.album } : {}), at };
+          data.songs.push(song);
+        }
+      }).then(() => { toast(`放进去了 ${list.length} 首`); render(); }).catch(() => false);
+    },
+  });
+}
+// 一首歌的展签
+function songView(id) {
+  const x = store.data.songs.find((y) => y.id === id);
+  if (!x) return notFound();
+  return h('div', {},
+    back('#/about', '关于我'),
+    h('div', { class: 'exhibit' },
+      h('div', { class: 'exhibit-case' }, pieceSvg('record', 'exhibit-svg'), h('span', { class: 'exhibit-stand' })),
+      h('div', { class: 'exhibit-label' },
+        h('div', { class: 'ex-kicker' }, '展品 · 最喜欢的歌'),
+        h('h1', {}, x.name),
+        h('div', { class: 'ex-era' }, [x.artist, x.album ? `《${x.album}》` : '', x.since ? `${dateText(x.since)}起` : ''].filter(Boolean).join(' · ')),
+        h('div', { class: 'ex-actions' }, h('button', { class: 'link small', onclick: () => songSheet(x) }, '改')))),
+    x.note ? h('p', { class: 'song-note' }, x.note) : null);
+}
+
+// 以前的「关于我」（藏起来了，柜子里不放；只有直接打开链接才看得到）
 function pieceEl(a) {
   const n = a.versions.length;
   return h('a', { class: 'piece', href: `#/about/${a.id}`, 'aria-label': `${a.topic || '一件展品'}${n > 1 ? `，${n} 个时期` : ''}` },

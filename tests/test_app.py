@@ -237,8 +237,8 @@ def _(c):
     assert e["people"] == ["p-a", new["id"]] and e["threads"] == ["t-friend"] and e["big"] and e["from"] == {"talk": t["id"]}, e
     s = next(s for s in d["stages"] if s["id"] == "s-primary")
     assert s["busy"] == "编的忙\n上学、写作业" and s["line"] == "编的一句话", s
-    a = d["about"][0]
-    assert a["sec"] == "character" and a["topic"] == "内向" and a["versions"][0]["label"] == "小学时", a
+    assert d["about"] == [], d["about"]   # 「关于我」不再从聊天里拆
+    expect(p.get_by_text("关于我（")).to_have_count(0)
     r = d["resume"][0]
     assert r["kind"] == "award" and r["from"] == "2013-06", r
 
@@ -254,30 +254,76 @@ def _(c):
     expect(p.locator(".person-thread", has=p.locator(".pt-name", has_text="丙同桌"))).to_be_visible()
 
 
-@step("关于我：展示柜、展品加一个时期（按时间排，最后是现在）、换个样子、往一层放一件")
+@step("关于我：展示柜只放最喜欢的歌，放一首、看展签、改、拿掉可以撤销；以前的「关于我」藏起来不删")
 def _(c):
     p = c.page
+    # 以前的「关于我」：数据还在，柜子里不放
+    c.repo.external_write("story.json", json.dumps({**c.data(), "about": [{"id": "a-old", "sec": "character", "topic": "编的旧话题", "versions": [{"id": "v1", "date": "", "text": "编的旧内容"}]}]}, ensure_ascii=False).encode())
     c.go("#/about")
-    p.locator(".piece", has_text="内向").click()
-    p.get_by_role("button", name="＋ 加一个时期（想法变了）").click()
-    c.sheet().get_by_label("内容").fill("现在开朗多了")
-    c.sheet().get_by_label("这是什么时候的").fill("2026")
-    c.sheet().get_by_role("button", name="加上").click()
-    expect(p.locator(".version")).to_have_count(2)
-    expect(p.locator(".version.now")).to_contain_text("现在开朗多了")
-    expect(p.locator(".version").first).to_contain_text("小学时")
-    # 换个样子
-    p.get_by_role("button", name="换个样子").click()
-    c.sheet().get_by_role("button", name="唱片").click()
-    c.wait(lambda d: next(a for a in d["about"] if a["topic"] == "内向").get("icon") == "record", "换了样子")
+    p.reload()
+    expect(p.locator(".cab-shelf")).to_have_count(1)
+    expect(p.locator(".cab-plate")).to_have_text("最喜欢的歌")
+    expect(p.get_by_text("编的旧话题")).to_have_count(0)
+    p.get_by_role("button", name="放一首歌").click()
+    c.sheet().get_by_role("button", name="放进去").click()
+    expect(p.locator(".toast.error")).to_contain_text("歌名")
+    c.sheet().get_by_label("歌名").fill("编的歌")
+    c.sheet().get_by_label("谁唱的").fill("编的歌手")
+    c.sheet().get_by_label("从什么时候开始喜欢").fill("2015")
+    c.sheet().get_by_label("为什么喜欢").fill("编的理由")
+    c.sheet().get_by_role("button", name="放进去").click()
+    p.locator(".piece", has_text="编的歌").click()
+    expect(p.locator(".exhibit-label h1")).to_have_text("编的歌")
+    expect(p.locator(".ex-era")).to_have_text("编的歌手 · 2015 年起")
+    expect(p.locator(".song-note")).to_have_text("编的理由")
+    p.get_by_role("button", name="改", exact=True).click()
+    c.sheet().get_by_label("谁唱的").fill("")
+    c.sheet().get_by_role("button", name="存好").click()
+    expect(p.locator(".ex-era")).to_have_text("2015 年起")
+    d = c.data()
+    song = d["songs"][0]
+    assert song["name"] == "编的歌" and song["since"] == "2015" and "artist" not in song, song
+    assert d["about"][0]["topic"] == "编的旧话题"   # 藏起来，没删
+    p.get_by_role("button", name="改", exact=True).click()
+    c.sheet().get_by_role("button", name="从柜子里拿掉").click()
+    expect(p.locator(".piece:not(.add)")).to_have_count(0)
+    p.locator(".toast-undo").click()
+    expect(p.locator(".piece", has_text="编的歌")).to_be_visible()
+    c.wait(lambda d: len(d["songs"]) == 1, "撤销拿掉")
+    # 第二首：谁唱的可以补全放过的歌手
     c.go("#/about")
-    expect(p.locator(".piece", has_text="内向").locator(".piece-dots i")).to_have_count(2)
-    # 新的一条
-    p.get_by_role("button", name="往「喜欢的」这一层放一件").click()
-    c.sheet().get_by_label("话题").fill("音乐")
-    c.sheet().get_by_label("内容").fill("编的古典")
-    c.sheet().get_by_role("button", name="加上").click()
-    c.wait(lambda d: any(a["topic"] == "音乐" and a["sec"] == "likes" for a in d["about"]), "加了喜欢的")
+    p.get_by_role("button", name="放一首歌").click()
+    expect(c.sheet().locator("#song-artists option")).to_have_count(0)   # 第一首的歌手刚才改成空了
+    c.sheet().get_by_role("button", name="取消").click()
+    p.locator(".piece", has_text="编的歌").click()
+    p.get_by_role("button", name="改", exact=True).click()
+    c.sheet().get_by_label("谁唱的").fill("编的歌手")
+    c.sheet().get_by_role("button", name="存好").click()
+    c.go("#/about")
+    p.get_by_role("button", name="放一首编的歌手的歌").click()
+    expect(c.sheet().locator("#song-artists option")).to_have_attribute("value", "编的歌手")
+    c.sheet().get_by_role("button", name="取消").click()
+    # 一次放好几首：每个歌手一层，层里按专辑分；柜子里已有的不重复放
+    p.get_by_role("button", name="一次放好几首").click()
+    c.sheet().get_by_label("歌的清单").fill("编的歌甲 — 编的歌手 — 编的专辑一\n编的歌乙 | 编的歌手 | 编的专辑二\n编的歌 — 编的歌手\n\n编的歌丙 — 另一个歌手 — 编的专辑三\nF=mw²r — 编的歌手 — 编的专辑二\n编的歌甲 — 编的歌手 — 编的专辑一")
+    expect(c.sheet().get_by_text("4 首新的（2 首柜子里已经有了）")).to_be_visible()
+    c.sheet().get_by_role("button", name="放进去").click()
+    expect(p.locator(".toast")).to_contain_text("放进去了 4 首")
+    expect(p.locator(".cab-plate")).to_have_text(["编的歌手", "另一个歌手"])
+    first = p.locator(".cab-shelf").first
+    expect(first.locator(".cab-album-name:not(.blank)")).to_have_text(["编的专辑一", "编的专辑二"])
+    expect(first.locator(".cab-album").nth(1).locator(".piece-name")).to_have_text(["编的歌乙", "F=mw²r"])
+    expect(first.locator(".cab-album").last.locator(".piece-name")).to_have_text(["编的歌"])   # 没写专辑的在最后
+    d = c.data()
+    x = next(y for y in d["songs"] if y["name"] == "F=mw²r")
+    assert x["artist"] == "编的歌手" and x["album"] == "编的专辑二" and len(d["songs"]) == 5, d["songs"]
+    # 从一层的「＋」进来：歌手先填好，专辑补全这个歌手的
+    p.get_by_role("button", name="放一首另一个歌手的歌").click()
+    expect(c.sheet().get_by_label("谁唱的")).to_have_value("另一个歌手")
+    expect(c.sheet().locator("#song-albums option")).to_have_attribute("value", "编的专辑三")
+    c.sheet().get_by_role("button", name="取消").click()
+    p.locator(".piece", has_text="编的歌乙").click()
+    expect(p.locator(".ex-era")).to_have_text("编的歌手 · 《编的专辑二》")
 
 
 @step("履历：加一条，年表上也有")
@@ -356,7 +402,7 @@ def _(c):
     p.get_by_role("button", name="整理").click()
     expect(p.locator(".draft")).to_contain_text("他是一个编的人")
     body = next(b for b in reversed(AI_LOG) if "简介" in b)
-    assert "参加编的比赛" in body and "内向" in body and "现在开朗多了" in body, body[:800]
+    assert "参加编的比赛" in body and "编的旧内容" in body and "【最喜欢的歌】" in body and "编的歌 — 编的歌手（2015 年起）：编的理由" in body and "编的歌乙 — 编的歌手《编的专辑二》" in body, body[:800]   # 藏起来的「关于我」简介照样用
     p.get_by_role("button", name="用这一版").click()
     expect(p.locator(".draft")).to_have_count(0)
     prof = json.loads(c.repo.read("profile.json"))
