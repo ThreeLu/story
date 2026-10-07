@@ -159,7 +159,8 @@ def _(c):
     assert len(d["stages"]) == 10 and d["stages"][4]["title"] == "初三 · 直升", d["stages"]
     assert any(t["name"] == "友情" for t in d["threads"])
     expect(p.locator(".next-title")).to_have_text("出生和家")
-    expect(p.locator(".lm-row")).to_have_count(10)
+    expect(p.locator(".book")).to_have_count(10)
+    expect(p.locator(".book.now")).to_have_count(0)
 
 
 @step("阶段：定时间、写一段，年表按时间分进去")

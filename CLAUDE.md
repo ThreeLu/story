@@ -24,7 +24,7 @@
   diary: [{ id, date, place, weather, text, from? }],
   about: [{ id, sec, topic, versions: [{ id, date, label?, text, from? }] }],
   resume: [{ id, kind: edu|exam|award|paper|report|work|skill, title, org, from, to, detail, at }],
-  places: [{ id, name, kind: home|school|live|trip, lat, lng（高德坐标）, approx?, from? }],
+  places: [{ id, name, kind: home|school|live|trip, lat, lng（高德坐标）, approx?, from? }]（住处只定位到小区，用户说的）,
   years: {}, profile: { text, chatgpt, at } | null }
 ```
 
@@ -33,7 +33,7 @@
 - **看法会变**（用户强调）：「关于我」一条（`sec` + `topic`）可以有好几个时期 `versions`，按 `date` 排，最后一个是现在的；想法变了加一个时期，不删以前的。DeepSeek 提议的同一栏同一话题加成新时期（`applyAbout`）。
 - 年表 `timelineItems`：事情 + 有开始日期的履历（事情写了 `resume` 的那条履历不再单独出现）。按阶段分组（`eventStage`：选了阶段优先，否则按时间 `stageOfDate`）。
 - 和 ChatGPT 聊（`#/talk`、`#/talk/go?k=stage|thread|year|free&id=&t=`）：`talkPrompt` / `yearPrompt`（content.js，带上这一题已经写下的 `knownFor`，免得重问）→ ChatGPT 语音聊 15–30 分钟 → 说「整理一下」，固定格式（### 回忆 / 事情 / 人 / 那时候的我 / 履历）→ 贴回 → `splitSections` 取回忆原文，`splitTalk`（DeepSeek）拆成 events / people / stage / about / resume → `talkReview` 一条条勾 → 存。原话（回忆）和拆出来的要点都留（用户定的）。建议下一个话题 `suggestTopic`：按时间第一个没聊过的阶段，再到线。
-- 人生地图（首页）：每个阶段写了多少 `stageFill` 分 0–4 档，颜色越深越满。
+- 人生地图（首页，`shelfCard`）：**一排书脊**（用户 2026-10-07 选的，之前的列表他嫌丑）。每个阶段一本书，宋体竖排书名；宽度按年数开方长（`30 + √年 × 9`），高度按名字长短；颜色按 `stageFill` 的 0–4 档（空的是米白纸色，满的是藤紫）；现在这一段夹一条金色书签；下面是书架板和开始年份。书架可以左右滑，打开时停在最右边（现在），滑到哪里记在 `shelfScroll`。
 - 每一年（`#/year/:y`）：这一年的事、日记、阶段 + 另外三个网站的数字（`yearStats`：账本花了 / 收入 / 心愿单买了什么，物品档案新添几样和 300 元以上的大件，生活网站出去走了哪些地方、做到的事、新记的人、生病几次、祷告天数），只读。年底聊「这一年」（`yearPrompt` 带这些数字）。
 - 给 AI 的简介（`#/profile`）：`storyDigest` 把阶段、年表、关于我（多个时期都给，标明最后是现在）、履历写成材料 → DeepSeek 写 `text`（第三人称 800–1500 字）和 `chatgpt`（第一人称、给 ChatGPT 自定义指令）→ 用户点「用这一版」才换，同时写 `profile.json`。**另外三个网站的 `js/ai.js` 读 `story-data/profile.json`（缓存一天）加在每次 DeepSeek 请求的 system 后面。**
 - 地图（`#/map`）：Leaflet（`vendor/leaflet`，按需加载）+ 高德底图（不用密钥）；紫色圆点可拖动改位置，`approx` 的是估的；有 `from` 的按时间虚线连起来。

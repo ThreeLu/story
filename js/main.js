@@ -407,15 +407,7 @@ function homeView() {
       h('div', { class: 'grow' }, h('div', { class: 'muted small' }, '下一次聊'), h('div', { class: 'next-title' }, topic.title)),
       h('a', { class: 'button', href: `#/talk/go?k=${topic.kind}&id=${encodeURIComponent(topic.id)}` }, icon('mic'), '开始聊'),
       h('a', { class: 'link small', href: '#/talk' }, '换一个')),
-    h('div', { class: 'card' },
-      h('h3', {}, '人生地图'),
-      h('div', { class: 'lifemap' }, d.stages.map((s) => {
-        const f = stageFill(d, s);
-        return h('a', { class: `lm-row lv${f.level}`, href: `#/stage/${s.id}` },
-          h('span', { class: 'lm-bar' }),
-          h('span', { class: 'grow' }, h('span', { class: 'lm-title' }, s.title), s.sub ? h('span', { class: 'muted small' }, ` ${s.sub}`) : null),
-          h('span', { class: 'muted small lm-meta' }, [stageYears(s), f.events ? `${f.events} 件事` : '', f.talks ? `聊过 ${f.talks} 次` : ''].filter(Boolean).join(' · ') || '还空着'));
-      }))),
+    shelfCard(d, today),
     h('div', { class: 'card' },
       h('h3', {}, '线'),
       h('div', { class: 'chips' }, d.threads.map((t) => h('a', { class: 'chip', href: `#/thread/${t.id}` }, t.name)))),
@@ -424,6 +416,50 @@ function homeView() {
       otd.slice(0, 3).map((x) => h('a', { class: 'otd', href: x.kind === 'event' ? `#/event/${x.id}` : `#/diary/${x.id}` },
         h('span', { class: 'muted small' }, `${today.slice(0, 4) - x.date.slice(0, 4)} 年前 · ${x.kind === 'event' ? '年表' : '日记'}`),
         h('span', { class: 'block' }, x.title)))) : null);
+}
+
+// 人生地图：一排书脊（用户 2026-10-07 选的）。越宽这一段越长，颜色越深写得越多，没写的是米白的空书；现在这一段夹着书签
+let shelfScroll = null;
+const BOOK_HEIGHTS = [168, 150, 176, 158, 146, 172, 140, 180, 154, 164];
+// 书脊宽度：越长越宽，但按开方长，免得小学那本像个箱子
+function shelfCard(d, today) {
+  const years = (s) => {
+    const r = stageRange(s);
+    if (!r.from) return 0;
+    const to = r.to > today ? today : r.to;
+    return Math.max(0, (new Date(to) - new Date(r.from)) / 3.156e10);
+  };
+  let lastYear = '';
+  const books = d.stages.map((s, i) => {
+    const f = stageFill(d, s);
+    const r = stageRange(s);
+    const title = s.title.replace(/\s*·\s*/g, '·');
+    const year = s.from ? s.from.slice(0, 4) : '';
+    const label = year && year !== lastYear ? year : '';
+    if (year) lastYear = year;
+    return {
+      s, f, title, label,
+      now: Boolean(r.from && r.from <= today && r.to >= today),
+      width: Math.round(30 + Math.sqrt(years(s)) * 9),
+      height: Math.min(188, Math.max(BOOK_HEIGHTS[i % BOOK_HEIGHTS.length], 52 + [...title].length * 17)),
+      meta: [stageYears(s), f.events ? `${f.events} 件事` : '', f.talks ? `聊过 ${f.talks} 次` : ''].filter(Boolean).join('，') || '还空着',
+    };
+  });
+  const empty = books.filter((b) => !b.f.level).length;
+  const wrap = h('div', { class: 'shelf-wrap' }, h('div', { class: 'shelf-inner' },
+    h('div', { class: 'shelf' }, books.map((b) => h('a', {
+      class: `book lv${b.f.level}${b.now ? ' now' : ''}`, href: `#/stage/${b.s.id}`, 'aria-label': `${b.s.title}：${b.meta}`,
+      style: `width:${b.width}px;height:${b.height}px`,
+    }, b.now ? h('span', { class: 'ribbon' }) : null, h('span', { class: 'book-title' }, b.title)))),
+    h('div', { class: 'shelf-plank' }),
+    h('div', { class: 'shelf-years' }, books.map((b) => h('span', { style: `width:${b.width}px` }, b.label)))));
+  // 第一次打开停在最右边（现在），往左滑是小时候；滑到哪里记住（这次打开里）
+  wrap.addEventListener('scroll', () => { shelfScroll = wrap.scrollLeft; }, { passive: true });
+  requestAnimationFrame(() => { wrap.scrollLeft = shelfScroll ?? wrap.scrollWidth; });
+  return h('div', { class: 'card shelf-card' },
+    h('h3', {}, '人生地图'),
+    wrap,
+    h('p', { class: 'muted small shelf-note' }, `越宽这一段越长，颜色越深写得越多${empty ? `；还有 ${empty} 本是空的` : ''}。往左滑是小时候。`));
 }
 
 // ---------- 年表 ----------
