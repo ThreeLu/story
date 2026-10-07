@@ -41,6 +41,8 @@
 - 地图（`#/map`）：Leaflet（`vendor/leaflet`，按需加载）+ 高德底图（不用密钥）；紫色圆点可拖动改位置，`approx` 的是估的；有 `from` 的按时间虚线连起来。
 - DeepSeek 密钥读物品档案仓库 `config/ai.json`（`aiConfig`）。
 
+- 提示（toast）一次只出一条，新的换掉旧的；底部有「撤销」时普通提示放在它上面（`.toast.raised`）。四个网站一样。
+
 ## 代码
 
 - `js/story.js` 纯计算；`js/content.js` 提示词；`js/main.js` 路由和页面；`js/store.js`、`github.js`、`util.js`、`icons.js`、`ai.js`、`picker.js` 和生活网站同一套（先存手机、后台上传）。语法检查 `node --input-type=module --check < js/main.js`。

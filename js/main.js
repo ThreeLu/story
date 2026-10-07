@@ -174,8 +174,10 @@ let lastPath = null;
 
 // ---------- 通用组件 ----------
 
+// 一次只出一条提示：新的换掉旧的；底部有「撤销」时放在它上面，不压住
 function toast(message, kind = 'ok') {
-  const el = h('div', { class: `toast ${kind}` }, message);
+  for (const x of document.querySelectorAll('.toast:not(.undo)')) x.remove();
+  const el = h('div', { class: `toast ${kind}${document.querySelector('.toast.undo') ? ' raised' : ''}` }, message);
   document.body.append(el);
   setTimeout(() => el.remove(), kind === 'error' ? 6000 : 2500);
 }
@@ -205,7 +207,7 @@ async function save(message, fn, opts) {
 const saveRender = (message, fn) => save(message, fn).then(() => { render(); return true; }).catch(() => false);
 
 function undoToast(text, onUndo) {
-  for (const el of document.querySelectorAll('.toast.undo')) el.remove();
+  for (const el of document.querySelectorAll('.toast')) el.remove();
   const el = h('div', { class: 'toast undo', role: 'status' }, h('span', {}, text),
     h('button', { type: 'button', class: 'toast-undo', onclick: () => { el.remove(); onUndo(); } }, '撤销'));
   document.body.append(el);
