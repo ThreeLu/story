@@ -25,6 +25,7 @@
   about: [{ id, sec, topic, icon?（展品的样子，pieces.js 的键）, versions: [{ id, date, label?, text, from? }] }],
   resume: [{ id, kind: edu|exam|award|paper|report|work|skill, title, org, from, to, detail, at }],
   places: [{ id, name, kind: home|school|live|trip, lat, lng（高德坐标）, approx?, from? }]（住处只定位到小区，用户说的）,
+  cities: [{ id, name, from, color }]（年表的线路）, settings: { birth? },
   years: {}, profile: { text, chatgpt, at } | null }
 ```
 
@@ -32,7 +33,7 @@
 - 人都存生活网站 `life-data/life.json` 的 `people` id（「身边的人」），不在这里另存名单。`lifeSnap()` 读一次存 5 分钟；拆聊天前 `ensureLife()` 必须读到名单（不然认识的人都会被当成新的）。新认识的人在「看一看」里确认后用 `updateLife()` 加进 life.json（分组按阶段猜 `STAGE_GROUP`，可改；男 / 女必选）。人名链接到生活网站 `#/person/:id`。生活网站人的页面里有「在我的故事里」（读 story.json 里带这个人的事）。
 - 「关于我」是一个**展示柜**（用户 2026-10-07 定：不要列表，也不是给 AI 看的资料，要「像展示的柜子」）：木框玻璃柜，每个栏目一层，层板正面铜牌写栏目名；每一条是一件**展品**（`js/pieces.js` 的线描小物件，按话题猜 `guessPiece`，可以「换个样子」存 `about[].icon`）+ 白色展签（话题，有几个时期就几个小点）；每层最后「＋」放一件。点开是展品说明页（玻璃展台 + 展签：展品 · 栏目、话题、年代）和「年代」（各个时期）。
 - **看法会变**（用户强调）：「关于我」一条（`sec` + `topic`）可以有好几个时期 `versions`，按 `date` 排，最后一个是现在的；想法变了加一个时期，不删以前的。DeepSeek 提议的同一栏同一话题加成新时期（`applyAbout`）。
-- 年表 `timelineItems`：事情 + 有开始日期的履历（事情写了 `resume` 的那条履历不再单独出现）。按阶段分组（`eventStage`：选了阶段优先，否则按时间 `stageOfDate`）。
+- 年表 `timelineItems`：事情 + 有开始日期的履历（事情写了 `resume` 的那条履历不再单独出现）。**画成地铁线路图**（用户 2026-10-07 选的，之前的细线列表他嫌没设计感）：`cities`（住过的城市，`from` 起）每个一条线、一种颜色（`LINE_COLORS`），换城市是换乘站（两列轨道 `METRO_X` 交替，中间白色圆角换乘标志）；每件事一个站（重要的大站、宋体加粗，履历是方形站），站名上写日子 · 大概 · 几岁（`ageAt`，生日 `settings.birth`）；阶段变了插一个灰色小牌子（点了进阶段）；最后「现在」脉动圆点 + 虚线。`metroRows` 算行，`linesSheet` 改线路。没日期的事放在下面「还没定时间」。其他页面（线、年份、聊天）里的小时间线还是 `tlRow`。
 - 和 ChatGPT 聊（`#/talk`、`#/talk/go?k=stage|thread|year|free&id=&t=`）：`talkPrompt` / `yearPrompt`（content.js，带上这一题已经写下的 `knownFor`，免得重问）→ ChatGPT 语音聊 15–30 分钟 → 说「整理一下」，固定格式（### 回忆 / 事情 / 人 / 那时候的我 / 履历）→ 贴回 → `splitSections` 取回忆原文，`splitTalk`（DeepSeek）拆成 events / people / stage / about / resume → `talkReview` 一条条勾 → 存。原话（回忆）和拆出来的要点都留（用户定的）。建议下一个话题 `suggestTopic`：按时间第一个没聊过的阶段，再到线。
 - 人生地图（首页，`shelfCard`）：**一排书脊**（用户 2026-10-07 选的，之前的列表他嫌丑）。每个阶段一本书，宋体竖排书名；宽度按年数开方长（`30 + √年 × 9`），高度按名字长短；颜色按 `stageFill` 的 0–4 档（空的是米白纸色，满的是藤紫）；现在这一段夹一条金色书签；下面是书架板和开始年份。书架可以左右滑，打开时停在最右边（现在），滑到哪里记在 `shelfScroll`。
 - 每一年（`#/year/:y`）：这一年的事、日记、阶段 + 另外三个网站的数字（`yearStats`：账本花了 / 收入 / 心愿单买了什么，物品档案新添几样和 300 元以上的大件，生活网站出去走了哪些地方、做到的事、新记的人、生病几次、祷告天数），只读。年底聊「这一年」（`yearPrompt` 带这些数字）。

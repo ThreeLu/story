@@ -84,6 +84,7 @@ export function defaultData(today) {
     about: [], // { id, sec, topic, versions: [{ id, date, label?, text, from? }] }
     resume: [], // { id, kind, title, org, from, to, detail }
     places: [], // { id, name, kind: home|school|live|trip, lat, lng, approx?, note }
+    cities: [], // 年表的线路：住过的城市 { id, name, from, color }，换城市就是换乘
     years: {}, // { '2026': { memoir, at } }
     profile: null, // { text, chatgpt, at }
   };
@@ -91,7 +92,7 @@ export function defaultData(today) {
 
 export function migrate(data) {
   const d = defaultData(data.startDate || '');
-  for (const k of ['events', 'talks', 'diary', 'about', 'resume', 'places']) data[k] ||= [];
+  for (const k of ['events', 'talks', 'diary', 'about', 'resume', 'places', 'cities']) data[k] ||= [];
   data.settings ||= {};
   data.years ||= {};
   if (!data.stages?.length) data.stages = d.stages;
@@ -363,3 +364,53 @@ export function splitSections(text) {
   return out;
 }
 
+
+
+// ---------- 年表：地铁线路图 ----------
+
+export const LINE_COLORS = ['#b9824f', '#4f86a8', '#7a68b0', '#5f9a6a', '#b55d6a', '#8a7b5c'];
+
+export function ageAt(birth, s) {
+  if (!birth || !s) return null;
+  const [by, bm, bd] = birth.split('-').map(Number);
+  const [y, m = 12, d = 28] = s.split('-').map(Number); // 只有年份时按年底算
+  const age = y - by - (m < bm || (m === bm && d < bd) ? 1 : 0);
+  return age >= 0 ? age : null;
+}
+
+export function sortedCities(data) {
+  const list = [...(data.cities || [])].filter((c) => c.from).sort((a, b) => dateStart(a.from).localeCompare(dateStart(b.from)));
+  return list.length ? list : [{ id: 'c-me', name: '', from: '0000', color: LINE_COLORS[2] }];
+}
+// 某个日期在哪条线上（还没到第一条线的日子，算第一条线）
+export function cityIndex(cities, s) {
+  const x = dateStart(s);
+  let i = 0;
+  cities.forEach((c, k) => { if (dateStart(c.from) <= x) i = k; });
+  return i;
+}
+
+// 年表的一行一行：line（线路起点）、stage（区间：阶段名）、station（站：一件事）、transfer（换乘）、now（现在）
+export function metroRows(data, items, today = todayKey()) {
+  const cities = sortedCities(data);
+  const dated = items.filter((x) => x.date);
+  const rows = [];
+  let ci = dated.length ? cityIndex(cities, dated[0].date) : cityIndex(cities, today);
+  rows.push({ type: 'line', city: cities[ci], col: ci % 2 });
+  let stageId = null;
+  const moveTo = (k) => {
+    while (ci < k) {
+      rows.push({ type: 'transfer', from: cities[ci], to: cities[ci + 1], fromCol: ci % 2, toCol: (ci + 1) % 2 });
+      ci++;
+    }
+  };
+  for (const x of dated) {
+    moveTo(cityIndex(cities, x.date));
+    const st = x.kind === 'event' ? eventStage(data, x.e) : stageOfDate(data.stages, x.date);
+    if (st && st.id !== stageId) { rows.push({ type: 'stage', stage: st, col: ci % 2, color: cities[ci].color }); stageId = st.id; }
+    rows.push({ type: 'station', item: x, col: ci % 2, color: cities[ci].color });
+  }
+  moveTo(cityIndex(cities, today));
+  rows.push({ type: 'now', col: ci % 2, color: cities[ci].color, city: cities[ci] });
+  return rows;
+}

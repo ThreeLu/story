@@ -197,8 +197,10 @@ def _(c):
     e = d["events"][0]
     assert e["date"] == "2012-03" and e["approx"] and e["people"] == ["p-a"] and e["threads"] == ["t-friend"], e
     c.go("#/timeline")
-    sec = p.locator(".tl-stage", has=p.locator(".tl-name", has_text="小学"))
-    expect(sec.locator(".tl-row", has_text="编的第一次")).to_be_visible()
+    expect(p.locator(".m-zone", has_text="小学")).to_be_visible()
+    st = p.locator(".m-station", has_text="编的第一次")
+    expect(st).to_contain_text("2012.3 · 大概")
+    expect(p.locator(".m-now")).to_be_visible()
     # 认不出的日期不让存
     c.go("#/event/new")
     p.get_by_label("这件事").fill("编的坏日期")
@@ -289,9 +291,32 @@ def _(c):
     c.sheet().get_by_role("button", name="存好").click()
     expect(p.locator(".cell", has_text="编的考试")).to_be_visible()
     c.go("#/timeline")
-    expect(p.locator(".tl-row.resume", has_text="编的考试")).to_be_visible()
+    expect(p.locator(".m-station.resume", has_text="编的考试")).to_be_visible()
     p.get_by_role("button", name="重要的").click()
-    expect(p.locator(".tl-row")).to_have_count(1)
+    expect(p.locator(".m-station")).to_have_count(1)
+    p.get_by_role("button", name="全部").click()
+
+
+@step("年表：线路（住过的城市）、换乘、岁数")
+def _(c):
+    p = c.page
+    d = json.loads(c.repo.read("story.json"))
+    d["settings"]["birth"] = "2004-11-30"
+    c.repo.external_write("story.json", json.dumps(d, ensure_ascii=False).encode())
+    c.go("#/timeline")
+    p.get_by_role("button", name="改线路（住过的城市）").click()
+    c.sheet().get_by_role("button", name="＋ 加一个城市").click()
+    c.sheet().get_by_label("第 1 条线的城市").fill("编的甲城")
+    c.sheet().get_by_label("第 1 条线从哪天起").fill("2004-11")
+    c.sheet().get_by_role("button", name="＋ 加一个城市").click()
+    c.sheet().get_by_label("第 2 条线的城市").fill("编的乙城")
+    c.sheet().get_by_label("第 2 条线从哪天起").fill("2013")
+    c.sheet().get_by_role("button", name="存好").click()
+    c.wait(lambda d: [x["name"] for x in d["cities"]] == ["编的甲城", "编的乙城"] and d["cities"][1]["from"] == "2013", "存了线路")
+    expect(p.locator(".m-start .m-line")).to_have_text("编的甲城线")
+    expect(p.locator(".m-transfer")).to_contain_text("编的乙城线")
+    expect(p.locator(".m-station", has_text="编的第一次")).to_contain_text("7 岁")
+    expect(p.locator(".m-now")).to_contain_text("在编的乙城")
 
 
 @step("日记：写一篇，那年今天出现在首页")

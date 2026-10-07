@@ -3,7 +3,7 @@ import { Store, newId, diff, apply as applyPatch } from './store.js';
 import {
   defaultData, todayKey, dateText, shortDate, parseDate, dateStart, yearOf, stageRange, stageYears, stageOfDate, eventStage,
   sortEvents, timelineItems, resumeTitle, stageFill, suggestTopic, onThisDay, firstLine, sortVersions, latestVersion, versionWhen,
-  applyAbout, yearsSpan, yearItems, yearStats, storyDigest, splitSections,
+  applyAbout, yearsSpan, yearItems, yearStats, storyDigest, splitSections, metroRows, ageAt, sortedCities, LINE_COLORS,
   STAGE_FIELDS, EVENT_KINDS, ABOUT_SECS, RESUME_KINDS, STAGE_GROUP, PEOPLE_GROUPS,
 } from './story.js';
 import { talkPrompt, yearPrompt, TALK_STEPS } from './content.js';
@@ -466,9 +466,9 @@ function shelfCard(d, today) {
 // ---------- 年表 ----------
 
 const TIMELINE_HELP = [
-  ['看', ['按阶段排，从小到大。紫色圆点是标了「重要」的事。', '上面一排可以只看某一条线（比如只看友情）。', '履历里有日期的（考试、奖、论文）也会出现在这里，标着「履历」，不用记两遍。']],
-  ['记', ['右上角 ＋ 记一件事。时间记不清可以只写年份，或者勾「大概」，也可以写自己的说法（「大概初二」）。']],
-  ['地图', ['右上角的地球：住过、上过学、去过的地方。']],
+  ['看', ['年表是一张地铁线路图：住过的每个城市是一条线，搬到新城市就是换乘。', '每件事是一个站，粗圈加粗的是重要的事；站名上面是日子和那时几岁。灰色小牌子是阶段，点一下进那一段。', '上面一排可以只看某一条线上的事（比如只看友情）。履历里有日期的也是站，标着「履历」。']],
+  ['记', ['右上角 ＋ 记一件事。时间记不清可以只写年份，或者勾「大概」。']],
+  ['线路', ['最下面「改线路」：加一个住过的城市（从哪天起）、换颜色。']],
 ];
 const tlState = { filter: '' };
 function timelineView(q) {
@@ -478,13 +478,10 @@ function timelineView(q) {
   let items = timelineItems(d);
   if (tlState.filter === 'big') items = items.filter((x) => x.big);
   else if (tlState.filter) items = items.filter((x) => x.threads.includes(tlState.filter));
-  const groups = new Map(d.stages.map((s) => [s.id, []]));
-  const loose = [];
-  for (const x of items) {
-    const st = x.kind === 'event' ? eventStage(d, x.e) : stageOfDate(d.stages, x.date);
-    if (st) groups.get(st.id).push(x); else loose.push(x);
-  }
+  const dated = items.filter((x) => x.date);
+  const loose = items.filter((x) => !x.date);
   const filters = [['', '全部'], ['big', '重要的'], ...d.threads.map((t) => [t.id, t.name])];
+  const birth = d.settings.birth || '';
   return h('div', {},
     header('年表',
       h('a', { class: 'icon-btn', href: '#/map', 'aria-label': '地图' }, icon('globe')),
@@ -493,17 +490,77 @@ function timelineView(q) {
     h('div', { class: 'chip-scroll' }, filters.map(([v, t]) => h('button', {
       type: 'button', class: `chip${tlState.filter === v ? ' on' : ''}`, onclick: () => { tlState.filter = v; render(); },
     }, t))),
-    items.length ? null : h('div', { class: 'card muted' }, tlState.filter ? '这条线上还没有事。' : '还没有记下的事。点右上角 ＋，或者去聊一段。'),
-    d.stages.map((s) => {
-      const list = groups.get(s.id);
-      if (!list.length) return null;
-      return h('section', { class: 'tl-stage' },
-        h('a', { class: 'tl-head', href: `#/stage/${s.id}` }, h('span', { class: 'tl-name' }, s.title), h('span', { class: 'muted small' }, stageYears(s))),
-        h('div', { class: 'tl' }, list.map(tlRow)));
-    }),
-    loose.length ? h('section', { class: 'tl-stage' },
-      h('div', { class: 'tl-head' }, h('span', { class: 'tl-name' }, '还没对上阶段'), h('span', { class: 'muted small' }, '没写时间，或者阶段还没定时间')),
-      h('div', { class: 'tl' }, loose.map(tlRow))) : null);
+    dated.length || !tlState.filter ? h('div', { class: 'metro' }, metroRows(d, dated, todayKey()).map((r) => metroRow(r, birth)))
+      : h('div', { class: 'card muted' }, '这条线上还没有事。'),
+    loose.length ? [h('div', { class: 'section-title' }, '还没定时间'), h('div', { class: 'tl' }, loose.map(tlRow))] : null,
+    h('button', { class: 'link small pad', onclick: linesSheet }, '改线路（住过的城市）'));
+}
+const METRO_X = [20, 44]; // 两列轨道的中心（换乘时拐到另一列）
+function metroRow(r, birth) {
+  const col = (c) => `c${c}`;
+  if (r.type === 'line') {
+    return h('div', { class: `m-row m-start ${col(r.col)}`, style: `--c:${r.city.color}` },
+      h('div', { class: 'm-track' }, h('span', { class: 'm-cap' })),
+      h('div', { class: 'm-body' }, h('span', { class: 'm-line' }, r.city.name ? `${r.city.name}线` : '我的线'),
+        r.city.name && r.city.from !== '0000' ? h('span', { class: 'm-meta inline' }, `${shortDate(r.city.from)} 起`) : null));
+  }
+  if (r.type === 'stage') {
+    return h('a', { class: `m-row m-stage ${col(r.col)}`, style: `--c:${r.color}`, href: `#/stage/${r.stage.id}` },
+      h('div', { class: 'm-track' }),
+      h('div', { class: 'm-body' }, h('span', { class: 'm-zone' }, r.stage.title)));
+  }
+  if (r.type === 'transfer') {
+    const [xa, xb] = [METRO_X[r.fromCol], METRO_X[r.toCol]];
+    const left = Math.min(xa, xb);
+    return h('div', { class: 'm-row m-transfer' },
+      h('div', { class: 'm-track' },
+        h('span', { class: 'm-seg', style: `left:${xa - 3}px;top:0;height:calc(50% + 3px);background:${r.from.color}` }),
+        h('span', { class: 'm-seg', style: `left:${left - 3}px;width:${Math.abs(xb - xa) + 6}px;top:calc(50% - 3px);height:6px;background:linear-gradient(${xb > xa ? 'to right' : 'to left'}, ${r.from.color}, ${r.to.color})` }),
+        h('span', { class: 'm-seg', style: `left:${xb - 3}px;top:calc(50% - 3px);bottom:0;background:${r.to.color}` }),
+        h('span', { class: 'm-ic', style: `left:${left - 10}px;width:${Math.abs(xb - xa) + 20}px` })),
+      h('div', { class: 'm-body' },
+        h('span', { class: 'm-meta' }, [shortDate(r.to.from), ageAt(birth, r.to.from) != null ? `${ageAt(birth, r.to.from)} 岁` : '', '换乘'].filter(Boolean).join(' · ')),
+        h('span', { class: 'm-title' }, '到 ', h('span', { class: 'm-line', style: `--c:${r.to.color}` }, `${r.to.name}线`))));
+  }
+  if (r.type === 'now') {
+    return h('div', { class: `m-row m-now ${col(r.col)}`, style: `--c:${r.color}` },
+      h('div', { class: 'm-track' }, h('span', { class: 'm-dot' })),
+      h('div', { class: 'm-body' }, h('span', { class: 'm-title' }, '现在', r.city.name ? h('span', { class: 'm-meta inline' }, `在${r.city.name}`) : null)));
+  }
+  const x = r.item;
+  const age = ageAt(birth, x.date);
+  return h('a', { class: `m-row m-station ${col(r.col)}${x.big ? ' big' : ''}${x.kind === 'resume' ? ' resume' : ''}`, style: `--c:${r.color}`, href: x.kind === 'event' ? `#/event/${x.id}` : '#/resume' },
+    h('div', { class: 'm-track' }, h('span', { class: 'm-dot' })),
+    h('div', { class: 'm-body' },
+      h('span', { class: 'm-meta' }, [x.label || shortDate(x.date), x.approx && !x.label ? '大概' : '', age != null ? `${age} 岁` : ''].filter(Boolean).join(' · ')),
+      h('span', { class: 'm-title' }, x.title, x.kind === 'resume' ? h('span', { class: 'badge' }, '履历') : null)));
+}
+// 改线路：住过的城市（从哪天起、颜色）
+function linesSheet() {
+  const draft = sortedCities(store.data).filter((c) => c.id !== 'c-me').map((c) => ({ ...c }));
+  const box = h('div', { class: 'form' });
+  const draw = () => box.replaceChildren(
+    ...draft.map((c, i) => h('div', { class: 'line-edit' },
+      h('div', { class: 'row-2' },
+        h('input', { value: c.name, placeholder: '城市', 'aria-label': `第 ${i + 1} 条线的城市`, oninput: (e) => { c.name = e.target.value; } }),
+        h('input', { value: c.from, placeholder: '从哪天起，比如 2022-9', 'aria-label': `第 ${i + 1} 条线从哪天起`, oninput: (e) => { c.from = e.target.value; } })),
+      h('div', { class: 'swatches' }, LINE_COLORS.map((col) => h('button', { type: 'button', class: `swatch${c.color === col ? ' on' : ''}`, style: `background:${col}`, 'aria-label': '颜色', onclick: () => { c.color = col; draw(); } })),
+        h('button', { type: 'button', class: 'link small', onclick: () => { draft.splice(i, 1); draw(); } }, '删掉')))),
+    h('button', { type: 'button', class: 'secondary small', onclick: () => { draft.push({ id: newId('c'), name: '', from: '', color: LINE_COLORS[draft.length % LINE_COLORS.length] }); draw(); } }, '＋ 加一个城市'));
+  draw();
+  openSheet({
+    title: '线路：住过的城市', body: h('div', {}, h('p', { class: 'muted small' }, '每个城市一条线，从搬过去那天起。年表上换城市就是换乘。'), box), confirmText: '存好',
+    onConfirm: () => {
+      const out = [];
+      for (const c of draft) {
+        if (!c.name.trim() && !c.from.trim()) continue;
+        const f = parseDate(c.from);
+        if (!c.name.trim() || !f) { toast('每个城市要有名字和从哪天起（比如 2022-9）', 'error'); return false; }
+        out.push({ id: c.id, name: c.name.trim(), from: f, color: c.color });
+      }
+      return saveRender('年表：改线路', (data) => { data.cities = out; });
+    },
+  });
 }
 function tlRow(x) {
   return h('a', { class: `tl-row${x.big ? ' big' : ''}${x.kind === 'resume' ? ' resume' : ''}`, href: x.kind === 'event' ? `#/event/${x.id}` : '#/resume' },

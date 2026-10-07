@@ -367,3 +367,50 @@ nav#nav .plus .circle {
 
 .pin span { display: block; width: 18px; height: 18px; margin: 4px; border-radius: 50%; background: var(--accent); border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
 .pin-home span { background: var(--amber); }
+
+/* 年表：地铁线路图。每个城市一条线（--c），两列轨道（c0 / c1）换乘时拐过去 */
+.metro {
+  position: relative; background: var(--card); border-radius: 16px; box-shadow: var(--shadow); padding: 10px 14px 34px 4px; margin-bottom: 14px;
+  background-image: linear-gradient(color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+.m-row { position: relative; display: flex; min-height: 50px; color: var(--text); }
+.m-row.c0 { --x: 20px; }
+.m-row.c1 { --x: 44px; }
+.m-track { position: relative; width: 64px; flex: none; }
+.m-track::before { content: ""; position: absolute; top: 0; bottom: 0; left: calc(var(--x) - 3px); width: 6px; background: var(--c); }
+.m-body { flex: 1; min-width: 0; padding: 9px 0 9px 2px; display: flex; flex-direction: column; justify-content: center; }
+.m-meta { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.m-meta.inline { margin-left: 8px; }
+.m-title { font-size: 15.5px; line-height: 1.4; overflow-wrap: anywhere; }
+.m-dot { position: absolute; z-index: 1; left: calc(var(--x) - 7px); top: 50%; margin-top: -7px; width: 14px; height: 14px; border-radius: 50%; background: var(--card); border: 3px solid var(--c); box-sizing: border-box; }
+.m-station.big .m-dot { left: calc(var(--x) - 10px); margin-top: -10px; width: 20px; height: 20px; border-width: 4px; box-shadow: 0 0 0 2px var(--card); }
+.m-station.big .m-title { font-family: var(--serif); font-weight: 600; font-size: 16.5px; letter-spacing: 0.02em; }
+.m-station.resume .m-dot { border-radius: 3px; width: 12px; height: 12px; margin-top: -6px; left: calc(var(--x) - 6px); }
+.m-station:active .m-title { color: var(--accent); }
+/* 线路起点：圆头 + 线名牌子 */
+.m-start .m-track::before { top: 50%; }
+.m-cap { position: absolute; z-index: 1; left: calc(var(--x) - 9px); top: 50%; margin-top: -9px; width: 18px; height: 18px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px var(--card), 0 0 0 4px var(--c); }
+.m-line { display: inline-block; align-self: flex-start; background: var(--c); color: #fff; font: 600 13px/1 var(--serif); letter-spacing: 0.12em; padding: 5px 9px 5px 11px; border-radius: 6px; }
+.m-title .m-line { vertical-align: 1px; }
+/* 区间：阶段名的小牌子 */
+.m-stage { min-height: 36px; }
+.m-stage .m-track::after { content: ""; position: absolute; top: 50%; left: calc(var(--x) + 3px); width: 10px; height: 1px; background: var(--muted); opacity: 0.6; }
+.m-zone { align-self: flex-start; font-size: 12px; letter-spacing: 0.15em; color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 1px 10px; }
+/* 换乘 */
+.m-transfer { min-height: 66px; }
+.m-transfer .m-track::before { display: none; }
+.m-seg { position: absolute; width: 6px; }
+.m-ic { position: absolute; z-index: 1; top: 50%; height: 20px; margin-top: -10px; border-radius: 10px; background: var(--card); border: 2.5px solid var(--text); box-sizing: border-box; }
+.m-transfer .m-title { font-weight: 600; }
+/* 现在：后面接一段虚线，还在往前开 */
+.m-now .m-track::before { bottom: 50%; }
+.m-now .m-track::after { content: ""; position: absolute; top: 50%; height: 34px; left: calc(var(--x) - 3px); width: 6px; background: repeating-linear-gradient(var(--c) 0 6px, transparent 6px 12px); opacity: 0.55; }
+.m-now .m-dot { background: var(--c); border-color: var(--card); box-shadow: 0 0 0 2px var(--c); animation: now-pulse 2.4s ease-out infinite; }
+.m-now .m-title { font-family: var(--serif); font-weight: 600; color: var(--c); }
+@keyframes now-pulse { 0% { box-shadow: 0 0 0 2px var(--c), 0 0 0 2px color-mix(in srgb, var(--c) 45%, transparent); } 100% { box-shadow: 0 0 0 2px var(--c), 0 0 0 12px transparent; } }
+@media (prefers-reduced-motion: reduce) { .m-now .m-dot { animation: none; } }
+.line-edit { padding: 10px 0; border-bottom: 0.5px solid var(--line); }
+.swatches { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.swatch { width: 26px; height: 26px; min-height: 0; padding: 0; border-radius: 50%; }
+.swatch.on { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
