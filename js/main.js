@@ -179,6 +179,8 @@ let lastPath = null;
 
 // 一次只出一条提示：新的换掉旧的；底部有「撤销」时放在它上面，不压住
 function toast(message, kind = 'ok') {
+  // 底部已经有「…  撤销」时，普通的「已保存」就不再叠一条了，只出错误
+  if (kind !== 'error' && document.querySelector('.toast.undo')) return;
   for (const x of document.querySelectorAll('.toast:not(.undo)')) x.remove();
   const el = h('div', { class: `toast ${kind}${document.querySelector('.toast.undo') ? ' raised' : ''}` }, message);
   document.body.append(el);
@@ -1613,7 +1615,7 @@ function mapView() {
     unplaced.length ? h('div', { class: 'card' }, h('h3', {}, '还没放到地图上'), h('div', { class: 'chips' }, unplaced.map((p) => h('button', { type: 'button', class: 'chip', onclick: () => { mapState.placing = p.id; render(); } }, p.name)))) : null,
     placed.length ? h('div', { class: 'group' }, [...placed].sort((a, b) => (a.from || '9').localeCompare(b.from || '9')).map((p) => h('div', { class: 'cell' },
       h('span', { class: 'grow' }, p.name, h('span', { class: 'muted small block' }, [PLACE_KINDS.find(([k]) => k === p.kind)?.[1], p.from ? `${shortDate(p.from)} 起` : '', p.approx ? '位置是大概的' : ''].filter(Boolean).join(' · '))),
-      h('button', { class: 'link small', onclick: () => saveUndoable(`地图：删 ${p.name}`, (data) => { data.places = data.places.filter((x) => x.id !== p.id); for (const e of data.events) if (e.placeId === p.id) delete e.placeId; }, '删掉了').then(render) }, '删')))) : null);
+      h('button', { class: 'link small icon-del', 'aria-label': '删掉', onclick: () => saveUndoable(`地图：删 ${p.name}`, (data) => { data.places = data.places.filter((x) => x.id !== p.id); for (const e of data.events) if (e.placeId === p.id) delete e.placeId; }, '删掉了').then(render) }, icon('trash'))))) : null);
 }
 
 // ---------- 给 AI 的简介 ----------
